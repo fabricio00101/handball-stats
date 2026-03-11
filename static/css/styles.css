@@ -1,0 +1,474 @@
+:root {
+    --bg-main: #0f172a;
+    --bg-card: #1e293b;
+    --bg-card-hover: #334155;
+    
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    
+    --accent-blue: #3b82f6;
+    --accent-blue-hover: #2563eb;
+    
+    --success: #10b981;
+    --success-hover: #059669;
+    
+    --fail: #ef4444;
+    --fail-hover: #dc2626;
+
+    --warning: #f59e0b;
+    --fatal: #b91c1c;
+    
+    --team-a-color: #6366f1; /* Indigo */
+    --team-b-color: #ec4899; /* Pink */
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+}
+
+#app-container {
+    width: 100%;
+    max-width: 1200px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* MARCADOR */
+#scoreboard {
+    background-color: var(--bg-card);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+
+.team-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+}
+
+.possession-indicator {
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: var(--warning);
+    margin-bottom: -4px;
+    letter-spacing: 1px;
+}
+
+.text-right {
+    text-align: right;
+    align-items: flex-end;
+}
+
+.team-name {
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+#team-a-name { color: var(--team-a-color); }
+#team-b-name { color: var(--team-b-color); }
+
+.score {
+    font-size: 3rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.time-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+#timer {
+    font-size: 3.5rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    font-family: monospace;
+    color: var(--accent-blue);
+    text-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+}
+
+#timer-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.control-btn {
+    background-color: var(--bg-card-hover);
+    color: var(--text-main);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.control-btn:hover {
+    background-color: var(--accent-blue);
+}
+
+/* INTERFAZ PRINCIPAL */
+#game-interface {
+    display: grid;
+    grid-template-columns: 250px 1fr 250px;
+    gap: 20px;
+    flex: 1;
+}
+
+/* LISTA DE JUGADORES */
+.team-column {
+    background-color: var(--bg-card);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+
+.team-column h3 {
+    font-size: 1.2rem;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--bg-card-hover);
+    padding-bottom: 10px;
+    text-align: center;
+}
+
+.player-list {
+    list-style: none;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Ocultar scrollbar pero mantener scroll */
+.player-list::-webkit-scrollbar { display: none; }
+
+.player-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    background-color: var(--bg-main);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 2px solid transparent;
+}
+
+.player-excl {
+    background: var(--fail);
+    color: white;
+    font-size: 0.8rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+    font-weight: bold;
+}
+
+.player-item:hover {
+    background-color: var(--bg-card-hover);
+}
+
+.player-item.active {
+    background-color: rgba(59, 130, 246, 0.1);
+    transform: scale(1.02);
+}
+
+#team-a-players .player-item.active {
+    border-color: var(--team-a-color);
+    box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
+}
+
+#team-b-players .player-item.active {
+    border-color: var(--team-b-color);
+    box-shadow: 0 0 10px rgba(236, 72, 153, 0.4);
+}
+
+.player-num {
+    background-color: var(--bg-card);
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    margin-right: 12px;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+#team-a-players .player-num { color: var(--team-a-color); }
+#team-b-players .player-num { color: var(--team-b-color); }
+
+.player-name {
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+/* PANEL CENTRAL / ACCIONES */
+#action-panel {
+    background-color: var(--bg-card);
+    border-radius: 12px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    position: relative;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+
+.action-feedback {
+    background-color: var(--bg-main);
+    color: var(--text-muted);
+    padding: 15px;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 1.1rem;
+    font-weight: 500;
+    border: 1px dashed var(--bg-card-hover);
+    transition: all 0.3s;
+}
+
+.actions-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    transition: opacity 0.3s;
+}
+
+.actions-grid.disabled {
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+.action-group h4 {
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.action-group {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+}
+
+.action-btn {
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    border: 1px solid var(--bg-card-hover);
+    padding: 15px 10px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.action-btn:hover {
+    background-color: var(--accent-blue);
+    border-color: var(--accent-blue);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.warning-btn:hover { background-color: var(--warning); border-color: var(--warning); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);}
+.danger-btn:hover { background-color: var(--fail); border-color: var(--fail); box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);}
+.fatal-btn:hover { background-color: var(--fatal); border-color: var(--fatal); box-shadow: 0 4px 12px rgba(185, 28, 28, 0.3); }
+
+/* MODAL / RESULTADO LANZAMIENTO */
+#outcome-modal {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(4px);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    z-index: 10;
+    padding: 20px;
+}
+
+#outcome-modal.full-modal {
+    justify-content: flex-start;
+    padding-top: 40px;
+    overflow-y: auto;
+}
+
+.shot-tracker-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 30px;
+    width: 100%;
+    max-width: 800px;
+    margin-top: 10px;
+}
+
+.tracker-section {
+    flex: 1;
+    min-width: 300px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.tracker-section p {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+/* COURT MAP */
+.court-map {
+    width: 100%;
+    aspect-ratio: 1.5;
+    background-color: #2b7a4b; 
+    border: 2px solid white;
+    border-radius: 8px;
+    position: relative;
+    cursor: crosshair;
+    background-image: 
+        linear-gradient(to right, transparent 49.5%, white 49.5%, white 50.5%, transparent 50.5%),
+        radial-gradient(circle at 0% 50%, transparent 20%, white 20%, white 21%, transparent 21%),
+        radial-gradient(circle at 100% 50%, transparent 20%, white 20%, white 21%, transparent 21%);
+}
+
+.marker {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    background-color: var(--warning);
+    border: 2px solid white;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 5;
+    transition: left 0.2s, top 0.2s;
+}
+
+/* GOAL MAP */
+.goal-map {
+    width: 100%;
+    aspect-ratio: 1.5;
+    background-color: rgba(255,255,255,0.05);
+    border: 6px solid #cbd5e1;
+    border-bottom: 3px solid #ef4444; 
+    border-radius: 4px 4px 0 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 1fr 1fr 1fr;
+    cursor: pointer;
+}
+
+.goal-zone {
+    border: 1px dashed rgba(255,255,255,0.15);
+    transition: background-color 0.2s;
+}
+
+.goal-zone:hover {
+    background-color: rgba(59, 130, 246, 0.4);
+}
+
+.goal-zone.selected {
+    background-color: rgba(16, 185, 129, 0.6);
+    border: 2px solid white;
+}
+
+#outcome-modal.hidden, .hidden {
+    display: none !important;
+}
+
+#outcome-modal h4 {
+    font-size: 1.5rem;
+    color: white;
+}
+
+.outcome-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    width: 100%;
+    max-width: 800px;
+}
+
+.outcome-btn {
+    flex: 1;
+    min-width: 120px;
+    padding: 15px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: white;
+    cursor: pointer;
+    transition: transform 0.2s, background-color 0.2s;
+}
+
+.outcome-btn:hover {
+    transform: scale(1.05);
+}
+
+.outcome-btn.success { background-color: var(--success); }
+.outcome-btn.fail { background-color: var(--fail); }
+.outcome-btn.default { background-color: var(--bg-card-hover); }
+.outcome-btn.warning-btn { background-color: var(--warning); }
+
+.cancel-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    text-decoration: underline;
+    margin-top: 10px;
+}
+
+/* TOAST */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: var(--success);
+    color: white;
+    padding: 15px 25px;
+    border-radius: 8px;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 100;
+}
+
+.toast.hidden {
+    opacity: 0;
+    transform: translateY(20px);
+    pointer-events: none;
+}
