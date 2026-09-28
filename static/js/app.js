@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const state = {
         selectedPlayerId: null,
         selectedTeam: null,
-        matchId: document.getElementById('match-id').value,
+        matchId: document.getElementById('match-id') ? document.getElementById('match-id').value : 1,
         pendingAction: null,
         coordenada_x: null,
         coordenada_y: null,
@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
         posession: 'A'
     };
     
-    const exclusions = {}; // Para timers de 2 min
+    const exclusions = {}; // Timers de 2 min
 
     // REFERENCIAS UI
     const playerItems = document.querySelectorAll('.player-item');
@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const actionsContainer = document.getElementById('actions-container');
     const actionBtns = document.querySelectorAll('.action-btn');
     const toast = document.getElementById('toast');
+    const lockPlayerToggle = document.getElementById('lock-player-toggle');
     
     const outcomeModal = document.getElementById('outcome-modal');
     const outcomeBtns = document.querySelectorAll('.outcome-btn');
@@ -30,30 +31,66 @@ document.addEventListener('DOMContentLoaded', () => {
     const courtMap = document.getElementById('court-map');
     const goalZones = document.querySelectorAll('.goal-zone');
     const markerCourt = document.getElementById('shot-marker-court');
+
+    // Inicializar posesión y estado desde el servidor al cargar (Event Sourcing - BUG-4)
+    async function loadMatchState() {
+        if (!state.matchId) return;
+        try {
+            const resp = await fetch(`/api/matches/${state.matchId}/state`);
+            if (resp.ok) {
+                const data = await resp.json();
+                scoreAEl.textContent = data.marcador_a || 0;
+                scoreBEl.textContent = data.marcador_b || 0;
+                updatePossession(data.posesion_actual || 'A');
+
+                if (typeof TimerModule !== 'undefined' && data.segundos_jugados !== undefined) {
+                    TimerModule.setSeconds(data.segundos_jugados);
+                }
+
+                // Restaurar exclusiones activas (BUG-5)
+                (data.exclusiones_activas || []).forEach(ex => {
+                    startExclusionTimer(ex.id_jugador, ex.segundos_restantes);
+                });
+            }
+        } catch (e) {
+            console.warn('Error al cargar estado del partido:', e);
+        }
+    }
     
-    // Inicializar posesión
+    // Inicializar posesión visual
     function updatePossession(team) {
         state.posession = team;
-        document.getElementById('possession-a').classList.toggle('hidden', team !== 'A');
-        document.getElementById('possession-b').classList.toggle('hidden', team !== 'B');
+        const posA = document.getElementById('possession-a');
+        const posB = document.getElementById('possession-b');
+        if (posA) posA.classList.toggle('hidden', team !== 'A');
+        if (posB) posB.classList.toggle('hidden', team !== 'B');
     }
-    updatePossession(state.posession);
+
+    // Lógica correcta de posesión (BUG-2)
+    function actualizarPosesionInteligente(equipoLanzador, evento) {
+        const rival = equipoLanzador === 'A' ? 'B' : 'A';
+        const res = evento.resultado;
+        const tipo = evento.tipo_evento;
+
+        if (res === 'GOL' || ['PERDIDA_BALON', 'FALTA_TECNICA', 'DOBLE', 'PASOS'].includes(tipo)) {
+            updatePossession(rival);
+        } else if (res === 'PARADA' || ['PARADA_PORTERO', 'ROBO_BALON', 'BLOQUEO'].includes(tipo)) {
+            updatePossession(equipoLanzador);
+        }
+    }
 
     // 1. SELECCIÓN DE JUGADOR
     playerItems.forEach(item => {
         item.addEventListener('click', (e) => {
-            // Deseleccionar todos
-            playerItems.forEach(p => p.classList.remove('active'));
-            
-            // Seleccionar el actual
             const clickedItem = e.currentTarget;
+            if (clickedItem.classList.contains('disabled')) return; // Jugador en banquillo por exclusión
+
+            playerItems.forEach(p => p.classList.remove('active'));
             clickedItem.classList.add('active');
             
-            // Actualizar estado
             state.selectedPlayerId = clickedItem.dataset.id;
             state.selectedTeam = clickedItem.dataset.team;
             
-            // Habilitar panel de acciones
             const playerName = clickedItem.querySelector('.player-name').textContent;
             actionFeedback.innerHTML = `Jugador seleccionado: <strong>${playerName}</strong>. Elige una acción.`;
             actionFeedback.style.borderColor = state.selectedTeam === 'A' ? 'var(--team-a-color)' : 'var(--team-b-color)';
@@ -74,11 +111,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (requiresOutcome) {
-                // Reset tracker modal states
                 state.coordenada_x = null;
                 state.coordenada_y = null;
                 state.zona_porteria = null;
-                markerCourt.classList.add('hidden');
+                if (markerCourt) markerCourt.classList.add('hidden');
                 goalZones.forEach(z => z.classList.remove('selected'));
                 
                 state.pendingAction = eventType;
@@ -89,16 +125,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // 2.5 TRACKER INTERACTIVO (PISTA Y PORTERÍA)
-    courtMap.addEventListener('click', (e) => {
-        const rect = courtMap.getBoundingClientRect();
-        state.coordenada_x = parseFloat(((e.clientX - rect.left) / rect.width).toFixed(4));
-        state.coordenada_y = parseFloat(((e.clientY - rect.top) / rect.height).toFixed(4));
-        
-        markerCourt.style.left = `${state.coordenada_x * 100}%`;
-        markerCourt.style.top = `${state.coordenada_y * 100}%`;
-        markerCourt.classList.remove('hidden');
-    });
+    // 2.5 TRACKER INTERACTIVO
+    if (courtMap) {
+        courtMap.addEventListener('click', (e) => {
+            const rect = courtMap.getBoundingClientRect();
+            state.coordenada_x = parseFloat(((e.clientX - rect.left) / rect.width).toFixed(4));
+            state.coordenada_y = parseFloat(((e.clientY - rect.top) / rect.height).toFixed(4));
+            
+            if (markerCourt) {
+                markerCourt.style.left = `${state.coordenada_x * 100}%`;
+                markerCourt.style.top = `${state.coordenada_y * 100}%`;
+                markerCourt.classList.remove('hidden');
+            }
+        });
+    }
 
     goalZones.forEach(zone => {
         zone.addEventListener('click', (e) => {
@@ -117,60 +157,60 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    cancelOutcomeBtn.addEventListener('click', () => {
-        state.pendingAction = null;
-        closeModal();
-    });
+    if (cancelOutcomeBtn) {
+        cancelOutcomeBtn.addEventListener('click', () => {
+            state.pendingAction = null;
+            closeModal();
+        });
+    }
 
     function closeModal() {
-        outcomeModal.classList.add('hidden');
+        if (outcomeModal) outcomeModal.classList.add('hidden');
         state.pendingAction = null;
     }
 
-    // 4. ALMACENAMIENTO Y SINCRONIZACIÓN (Offline First)
+    // 4. ALMACENAMIENTO Y SINCRONIZACIÓN OFFLINE
     function saveEventToQueue(eventData) {
-        eventData.id_local = Date.now().toString(); 
-        const queue = JSON.parse(localStorage.getItem('eventosBalonmano') || '[]');
-        queue.push(eventData);
-        localStorage.setItem('eventosBalonmano', JSON.stringify(queue));
+        // Guardar mediante módulo resiliente (Fase 2)
+        OfflineQueue.enqueue(state.matchId, eventData);
         
-        // --- 4.1 LÓGICA DE NEGOCIO EN TIEMPO REAL --- //
+        // --- 4.1 LÓGICA EN TIEMPO REAL --- //
         const currentTeam = state.selectedTeam;
-        const otherTeam = currentTeam === 'A' ? 'B' : 'A';
         
-        // Actualizar Marcador
+        // Marcador
         if (eventData.resultado === 'GOL') {
             if (currentTeam === 'A') scoreAEl.textContent = parseInt(scoreAEl.textContent) + 1;
             else if (currentTeam === 'B') scoreBEl.textContent = parseInt(scoreBEl.textContent) + 1;
         }
 
-        // Cambio Inteligente de Posesión
-        if (eventData.resultado === 'GOL' || eventData.tipo_evento === 'PERDIDA_BALON' || eventData.resultado === 'PARADA') {
-            updatePossession(otherTeam);
-        } else if (eventData.tipo_evento === 'PARADA' || eventData.tipo_evento === 'ROBO_BALON') {
-            updatePossession(currentTeam);
-        }
+        // Posesión corregida
+        actualizarPosesionInteligente(currentTeam, eventData);
 
-        // Cronómetro Exclusión
+        // Exclusión
         if (eventData.tipo_evento === 'EXCLUSION_2MIN') {
-            startExclusionTimer(eventData.id_jugador);
+            startExclusionTimer(eventData.id_jugador, 120);
         }
         
         showToast(`Registrado: ${eventData.tipo_evento.replace('_', ' ')}`);
         resetSelection();
-        syncQueue();
     }
 
-    function startExclusionTimer(playerId) {
+    // Exclusión con bloqueo de jugador (BUG-5)
+    function startExclusionTimer(playerId, durationSeconds = 120) {
         if (exclusions[playerId]) clearInterval(exclusions[playerId].interval);
         
-        let remaining = 120;
+        let remaining = durationSeconds;
         const playerItem = document.querySelector(`.player-item[data-id="${playerId}"]`);
         if (!playerItem) return;
         
+        playerItem.classList.add('disabled'); // Deshabilitar selección mientras esté excluido
         const exclSpan = playerItem.querySelector('.player-excl');
-        exclSpan.classList.remove('hidden');
-        exclSpan.textContent = '2:00';
+        if (exclSpan) {
+            exclSpan.classList.remove('hidden');
+            const m = Math.floor(remaining / 60);
+            const s = remaining % 60;
+            exclSpan.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+        }
         
         exclusions[playerId] = {
             interval: setInterval(() => {
@@ -178,8 +218,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (remaining <= 0) {
                     clearInterval(exclusions[playerId].interval);
                     delete exclusions[playerId];
-                    exclSpan.classList.add('hidden');
-                } else {
+                    playerItem.classList.remove('disabled');
+                    if (exclSpan) exclSpan.classList.add('hidden');
+                } else if (exclSpan) {
                     const m = Math.floor(remaining / 60);
                     const s = remaining % 60;
                     exclSpan.textContent = `${m}:${s.toString().padStart(2, '0')}`;
@@ -188,52 +229,14 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    async function syncQueue() {
-        let queue = JSON.parse(localStorage.getItem('eventosBalonmano') || '[]');
-        if (queue.length === 0) return;
-
-        const eventData = queue[0];
-
-        try {
-            const response = await fetch('/api/event', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(eventData)
-            });
-
-            if (!response.ok) throw new Error('Error al enviar al servidor');
-
-            // Evento enviado correctamente, lo sacamos de la cola
-            queue = JSON.parse(localStorage.getItem('eventosBalonmano') || '[]');
-            queue.shift();
-            localStorage.setItem('eventosBalonmano', JSON.stringify(queue));
-            
-            console.log('Sincronizado:', eventData.tipo_evento);
-            
-            // Seguir sincronizando si hay más
-            if (queue.length > 0) {
-                syncQueue();
-            }
-        } catch (error) {
-            console.warn('Sin conexión. Sincronización pausada.', error);
-            showToast('Offline: Guardado localmente', true);
-        }
-    }
-
-    // Intentar sincronizar al recuperar la conexión
-    window.addEventListener('online', syncQueue);
-    // Intentar sincronizar al arrancar la página por si quedaron eventos
-    syncQueue();
-
     // 5. MANEJO DE ENVÍO DE EVENTO
     function sendEvent(eventType, outcome) {
-        // Empaquetar datos incluyendo coordenadas si las hay
         const eventData = {
             id_partido: parseInt(state.matchId),
             id_jugador: parseInt(state.selectedPlayerId),
             tipo_evento: eventType,
             resultado: outcome,
-            tiempo_juego: TimerModule.getCurrentTime(),
+            tiempo_juego: TimerModule ? TimerModule.getCurrentTime() : '00:00',
             periodo: 1, 
             coordenada_x: state.coordenada_x, 
             coordenada_y: state.coordenada_y,
@@ -248,6 +251,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function resetSelection() {
+        // BUG-16 / Modo Fijar Jugador (<3 clics por acción)
+        if (lockPlayerToggle && lockPlayerToggle.checked && state.selectedPlayerId) {
+            // Mantener jugador activo para encadenar tiro/asistencia
+            return;
+        }
+
         playerItems.forEach(p => p.classList.remove('active'));
         state.selectedPlayerId = null;
         state.selectedTeam = null;
@@ -257,6 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showToast(message, isError = false) {
+        if (!toast) return;
         toast.textContent = message;
         toast.style.backgroundColor = isError ? 'var(--warning)' : 'var(--success)';
         toast.classList.remove('hidden');
@@ -266,15 +276,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 3000);
     }
 
-    // 6. MÓDULO DE EXPORTACIÓN Y REPORTES BIG DATA
-    const btnExport = document.getElementById('btn-export-json');
-    const btnStats = document.getElementById('btn-view-stats');
+    // Eventos de sincronización offline
+    window.addEventListener('online', () => OfflineQueue.sync(state.matchId));
+    OfflineQueue.sync(state.matchId);
+    loadMatchState();
 
+    // Exportación JSON
+    const btnExport = document.getElementById('btn-export-json');
     if (btnExport) {
         btnExport.addEventListener('click', async () => {
             try {
-                // Ensure everything is synced before export
-                await syncQueue();
+                await OfflineQueue.sync(state.matchId);
                 const resp = await fetch(`/api/matches/${state.matchId}/export`);
                 if (!resp.ok) throw new Error('Error al generar JSON');
                 const data = await resp.json();
@@ -292,22 +304,6 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch(e) {
                 console.error(e);
                 showToast('Error al exportar, intenta de nuevo', true);
-            }
-        });
-    }
-
-    if (btnStats) {
-        btnStats.addEventListener('click', async () => {
-            try {
-                await syncQueue();
-                const resp = await fetch(`/api/stats/${state.matchId}`);
-                if (!resp.ok) throw new Error('Error al calcular stats');
-                const data = await resp.json();
-                console.table(data);
-                alert('Métricas calculadas exitosamente.\n\nSe han impreso en formato tabla en la consola del navegador (F12) para que puedas ver el GKI, Eficiencia de tiro, y aportaciones por jugador.');
-            } catch(e) {
-                console.error(e);
-                showToast('Error al cargar analíticas', true);
             }
         });
     }

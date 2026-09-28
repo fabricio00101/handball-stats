@@ -7,3 +7,10 @@ database.db
 *.sqlite
 *.sqlite3
 .DS_Store
+instance/
+*.log
+.idea/
+.vscode/
+*.egg-info/
+.pytest_cache/
+*.docx

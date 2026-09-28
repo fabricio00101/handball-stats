@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estadísticas del Partido</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <style>
+        .stats-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            color: var(--text-light);
+        }
+        .stats-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .stats-table th, .stats-table td {
+            padding: 12px;
+            text-align: center;
+            border-bottom: 1px solid var(--bg-card-hover);
+        }
+        .stats-table th {
+            background-color: var(--bg-card-hover);
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        .charts-row {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        .chart-box {
+            flex: 1;
+            min-width: 300px;
+            background: var(--bg-card);
+            padding: 20px;
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+        .heatmap-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 15px;
+        }
+        .heatmap-cell {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 0.9rem;
+            text-shadow: 1px 1px 2px black;
+        }
+    </style>
+</head>
+<body>
+    <div class="stats-container">
+        <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h1 id="match-title">Análisis de Partido</h1>
+            <a href="/?match={{ match_id }}" class="action-btn" style="text-decoration: none; display: inline-block;">⬅ Volver a Captura</a>
+        </header>
+        
+        <input type="hidden" id="match-id" value="{{ match_id }}">
+
+        <div class="charts-row">
+            <div class="chart-box">
+                <h3 style="text-align: center; margin-bottom: 10px;">Goles por Jugador</h3>
+                <canvas id="chartGoles"></canvas>
+            </div>
+            <div class="chart-box">
+                <h3 style="text-align: center; margin-bottom: 10px;">Distribución de Tiros</h3>
+                <canvas id="chartZonas"></canvas>
+            </div>
+            <div class="chart-box">
+                <h3 style="text-align: center; margin-bottom: 10px;">Mapa de Calor en Portería</h3>
+                <div class="heatmap-container">
+                    <div id="goal-heatmap" class="goal-map" style="position: relative;">
+                        <!-- Cells injected via JS -->
+                    </div>
+                </div>
+                <p style="text-align: center; font-size: 0.8rem; margin-top: 10px; color: var(--text-muted);">
+                    Rojo: Mayoría de Goles | Azul: Paradas
+                </p>
+            </div>
+        </div>
+
+        <h3>Estadísticas de Jugadores</h3>
+        <div style="overflow-x: auto;">
+            <table class="stats-table" id="players-table">
+                <thead>
+                    <tr>
+                        <th>Equipo</th>
+                        <th>#</th>
+                        <th>Nombre</th>
+                        <th>Goles/Lanz.</th>
+                        <th>% Efic.</th>
+                        <th>Asist.</th>
+                        <th>Paradas</th>
+                        <th>GKI</th>
+                        <th>Excl.</th>
+                        <th>Pérdidas</th>
+                        <th title="Proxy por posesión">+/- *</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Injected via JS -->
+                </tbody>
+            </table>
+        </div>
+        <p style="font-size: 0.8rem; color: var(--text-muted);">* +/- (Plus/Minus) calculado como proxy por posesión ante la falta de tracking de alineación completa (lineups).</p>
+    </div>
+
+    <!-- Cargar Chart.js vendorizado offline -->
+    <script src="{{ url_for('static', filename='vendor/chart.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/stats.js') }}"></script>
+</body>
+</html>

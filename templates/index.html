@@ -55,6 +55,11 @@
                 <div class="action-feedback" id="action-feedback">
                     Selecciona un jugador para continuar...
                 </div>
+
+                <div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-bottom: 10px; color: var(--text-light); font-size: 0.9rem;">
+                    <label for="lock-player-toggle" style="cursor: pointer; user-select: none;">📌 Mantener jugador seleccionado (Captura <3 clics):</label>
+                    <input type="checkbox" id="lock-player-toggle" checked style="cursor: pointer; transform: scale(1.2);">
+                </div>
                 
                 <div class="actions-grid disabled" id="actions-container">
                     <!-- ACCIONES OFENSIVAS -->
@@ -70,10 +75,12 @@
 
                     <!-- ACCIONES DEFENSIVAS -->
                     <div class="action-group">
-                        <h4>Defensiva</h4>
-                        <button class="action-btn" data-event-type="PARADA" data-requires-outcome="false">Parada (Portero)</button>
+                        <h4>Defensiva y Faltas</h4>
+                        <button class="action-btn" data-event-type="PARADA_PORTERO" data-requires-outcome="false">Parada (Portero)</button>
                         <button class="action-btn" data-event-type="ROBO_BALON" data-requires-outcome="false">Robo</button>
                         <button class="action-btn" data-event-type="BLOQUEO" data-requires-outcome="false">Bloqueo</button>
+                        <button class="action-btn" data-event-type="FALTA" data-requires-outcome="false">Falta</button>
+                        <button class="action-btn" data-event-type="FALTA_TECNICA" data-requires-outcome="false">Falta Técnica</button>
                     </div>
 
                     <!-- DISCIPLINARIAS -->
@@ -118,7 +125,8 @@
                     <div class="outcome-buttons mt-20">
                         <p style="width:100%; text-align:center; color:white; margin-bottom:10px;">3. Selecciona el resultado para finalizar</p>
                         <button class="outcome-btn success" data-outcome="GOL">Gol</button>
-                        <button class="outcome-btn fail" data-outcome="FALLO">Fallo/Poste</button>
+                        <button class="outcome-btn fail" data-outcome="FALLO">Fallo</button>
+                        <button class="outcome-btn default" data-outcome="POSTE">Poste</button>
                         <button class="outcome-btn default" data-outcome="PARADA">Parada</button>
                         <button class="outcome-btn warning-btn" data-outcome="BLOQUEADO" style="flex:1;">Bloqueado</button>
                     </div>
@@ -144,7 +152,7 @@
         <!-- SECCIÓN DE REPORTES (BIG DATA) -->
         <footer id="reports-section" style="display: flex; gap: 15px; margin-top: 20px; justify-content: center;">
             <button class="action-btn" id="btn-export-json" style="background-color: var(--accent-blue);">📥 Exportar JSON (Métricas EHF)</button>
-            <button class="action-btn" id="btn-view-stats" style="background-color: var(--warning);">📊 Calcular Estadísticas Avanzadas</button>
+            <button class="action-btn" id="btn-view-stats" style="background-color: var(--warning);" onclick="window.location.href='/stats?match=' + document.getElementById('match-id').value">📊 Calcular Estadísticas Avanzadas</button>
         </footer>
     </div>
 
@@ -152,6 +160,7 @@
     <div id="toast" class="toast hidden">Evento registrado</div>
 
     <script src="{{ url_for('static', filename='js/timer.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/queue.js') }}"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>

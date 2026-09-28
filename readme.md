@@ -50,3 +50,78 @@ Para replicar la eficiencia de Handball.ai, la implementación debe seguir este 
 - **Validación:** No permitir registrar un gol de 7m si no se ha marcado previamente una falta personal/penalti.
 - **Exportación:** Generar estructura JSON compatible para reportes PDF de fin de partido.
 - **Sincronización:** Priorizar la persistencia local (Local Storage/IndexedDB) para evitar pérdida de datos por mala conexión en pabellones.
+
+---
+
+## 7. Cómo Ejecutar
+
+1. Requisitos: Python 3.10+
+2. Crear y activar entorno virtual:
+   - Windows: `python -m venv venv` y `.\venv\Scripts\activate`
+   - Linux/macOS: `python3 -m venv venv` y `source venv/bin/activate`
+3. Instalar dependencias: `pip install -r requirements.txt`
+4. Inicializar Base de Datos: `python init_db.py`
+5. Ejecutar la aplicación: `flask run` (o `python app.py`)
+
+---
+
+## 8. Estructura del Proyecto
+
+```
+app-balonmano/
+├── .env.example
+├── .gitignore
+├── app.py                      # Servidor Flask principal
+├── database.db                 # Base de datos SQLite (ignorado en git)
+├── init_db.py                  # Script de creación e inicialización de BD
+├── PLAN_IMPLEMENTACION.md      # Plan maestro de implementación
+├── pytest.ini                  # Configuración de Pytest
+├── readme.md                   # Especificación y documentación del proyecto
+├── requirements.txt            # Dependencias de producción
+├── requirements-dev.txt        # Dependencias de desarrollo y tests
+├── schema.sql                  # Esquema de tablas SQLite
+├── static/
+│   ├── css/styles.css          # Estilos Vanilla CSS (Tema Oscuro)
+│   └── js/
+│       ├── app.js              # Captura de eventos, sincronización offline
+│       └── timer.js            # Cronómetro de partido
+└── templates/
+    └── index.html              # Interfaz de captura de partidos
+```
+
+---
+
+## 9. Vocabulario de Eventos (Contrato Frontend <-> Backend)
+
+### `tipo_evento`
+- **Lanzamientos:** `LANZAMIENTO_6M`, `LANZAMIENTO_9M`, `LANZAMIENTO_7M`, `CONTRAATAQUE` (requieren `resultado`)
+- **Ofensiva:** `ASISTENCIA`
+- **Defensiva:** `ROBO_BALON`, `BLOQUEO`, `PARADA_PORTERO`
+- **Error:** `PERDIDA_BALON`, `FALTA_TECNICA`, `DOBLE`, `PASOS`
+- **Falta:** `FALTA`, `FALTA_TECNICA`
+- **Disciplina:** `AMARILLA`, `EXCLUSION_2MIN`, `DESCALIFICACION`
+
+### `resultado` (Solo para Lanzamientos)
+- `GOL`, `FALLO`, `PARADA`, `BLOQUEADO`, `POSTE`
+
+### `zona_porteria`
+- Cuadrícula 3x3: `TL`, `TC`, `TR`, `ML`, `MC`, `MR`, `BL`, `BC`, `BR`
+
+---
+
+## 10. Tests y Verificación
+
+Instalar dependencias de desarrollo y ejecutar la suite de pruebas:
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+---
+
+## 11. Limitaciones Conocidas
+
+1. **`id_equipo` encasillado a `'A'` / `'B'`:** El modelo actual abstrae equipos como Local ('A') y Visitante ('B'). El modelo relacional `Equipos` + `Partido_Equipos` se implementará en una fase futura.
+2. **`+/-` (Plus/Minus) como Proxy por Posesión:** Al no contar con tracking de alineación completa en pista (lineup de 7 jugadores), la métrica `+/-` refleja los goles a favor − en contra de su equipo durante las posesiones activas del jugador.
+
