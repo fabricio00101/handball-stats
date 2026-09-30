@@ -8,6 +8,7 @@
     <style>
         .stats-container {
             max-width: 1200px;
+            width: 100%;
             margin: 0 auto;
             padding: 20px;
             color: var(--text-light);
@@ -17,8 +18,11 @@
             border-collapse: collapse;
             margin-bottom: 30px;
             background: var(--bg-card);
-            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
             overflow: hidden;
+            color: var(--text-main);
+            font-variant-numeric: tabular-nums;
         }
         .stats-table th, .stats-table td {
             padding: 12px;
@@ -26,10 +30,15 @@
             border-bottom: 1px solid var(--bg-card-hover);
         }
         .stats-table th {
-            background-color: var(--bg-card-hover);
-            font-weight: bold;
-            color: var(--primary-color);
+            background-color: var(--bg-main);
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: var(--text-muted);
         }
+        .stats-table tbody tr:nth-child(even) { background: var(--bg-main); }
+        .stats-table tbody tr:hover { background: var(--bg-card-hover); }
         .charts-row {
             display: flex;
             gap: 20px;
@@ -40,10 +49,13 @@
             flex: 1;
             min-width: 300px;
             background: var(--bg-card);
+            border: 1px solid var(--border-color);
             padding: 20px;
-            border-radius: 8px;
+            border-radius: var(--radius-md);
             box-sizing: border-box;
+            box-shadow: var(--shadow-card);
         }
+        .chart-box h3 { color: var(--text-main); }
         .heatmap-container {
             display: flex;
             justify-content: center;
@@ -55,32 +67,146 @@
             justify-content: center;
             align-items: center;
             font-size: 0.9rem;
-            text-shadow: 1px 1px 2px black;
+            color: var(--text-main);
         }
+        .kpi-grid {
+            display: flex;
+            gap: 12px;
+            justify-content: space-around;
+            text-align: center;
+            flex-wrap: wrap;
+        }
+        .kpi-grid > div {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 12px 14px;
+            min-width: 90px;
+            box-shadow: var(--shadow-card);
+        }
+        .kpi-val {
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            font-variant-numeric: tabular-nums;
+            color: var(--text-main);
+        }
+        .kpi-label { font-size: 0.8rem; color: var(--text-muted); }
+        .team-a-accent { color: var(--team-a-color); }
+        .team-b-accent { color: var(--team-b-color); }
     </style>
+
+    <link rel="manifest" href="/manifest.webmanifest">
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js');
+            });
+        }
+    </script>
 </head>
+
 <body>
+    <nav class="top-navbar">
+        <div class="top-navbar-left">
+            <button class="nav-back-btn" onclick="if (document.referrer && document.referrer.indexOf(window.location.host) !== -1) { history.back(); } else { window.location.href = '/partidos'; }" title="Volver a la pantalla anterior">
+                ← Volver
+            </button>
+            <a href="/partidos" class="nav-brand">🤾 Balonmano Stats</a>
+        </div>
+        <div class="top-navbar-right">
+            <a href="/partidos" class="nav-link">📋 Partidos</a>
+            <a href="/?match={{ match_id if match_id else '' }}" class="nav-link">⏱️ Captura</a>
+            <a href="/stats?match={{ match_id if match_id else '' }}" class="nav-link active">📊 Estadísticas</a>
+            <a href="/equipos" class="nav-link">👥 Equipos</a>
+            <a href="/nuevo_partido" class="nav-link">➕ Nuevo Partido</a>
+        </div>
+    </nav>
     <div class="stats-container">
         <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h1 id="match-title">Análisis de Partido</h1>
-            <a href="/?match={{ match_id }}" class="action-btn" style="text-decoration: none; display: inline-block;">⬅ Volver a Captura</a>
+            <div style="display: flex; gap: 10px;">
+                <a href="/api/matches/{{ match_id }}/export/csv" class="action-btn" style="text-decoration: none; display: inline-block; background: var(--accent-blue); border-color: var(--accent-blue); color: #fff;">⬇ CSV</a>
+                <a href="/api/matches/{{ match_id }}/export/json" class="action-btn" style="text-decoration: none; display: inline-block;">⬇ JSON</a>
+                <a href="/?match={{ match_id if match_id else '' }}" class="action-btn" style="text-decoration: none; display: inline-block;">⬅ Volver a Captura</a>
+            </div>
         </header>
         
         <input type="hidden" id="match-id" value="{{ match_id }}">
 
+        <div class="charts-row" id="kpi-strip">
+            <div class="chart-box">
+                <h3 style="text-align: center; margin-bottom: 10px;" class="team-a-accent" id="kpi-a-nombre">Equipo A</h3>
+                <div class="kpi-grid" id="kpi-a"></div>
+            </div>
+            <div class="chart-box">
+                <h3 style="text-align: center; margin-bottom: 10px;" class="team-b-accent" id="kpi-b-nombre">Equipo B</h3>
+                <div class="kpi-grid" id="kpi-b"></div>
+            </div>
+        </div>
+
         <div class="charts-row">
             <div class="chart-box">
-                <h3 style="text-align: center; margin-bottom: 10px;">Goles por Jugador</h3>
-                <canvas id="chartGoles"></canvas>
+                <h3 style="text-align: center; margin-bottom: 10px;">Parciales cada 10 minutos</h3>
+                <div id="bloques-tabla" style="overflow-x: auto;"></div>
+            </div>
+        </div>
+
+        <div class="charts-row">
+            <div class="chart-box">
+                <h3 style="text-align: center; margin-bottom: 10px;">Lanzamientos por tipo</h3>
+                <div id="tipos-tabla" style="overflow-x: auto;"></div>
+            </div>
+        </div>
+
+        <div class="charts-row">
+            <div class="chart-box">
+                <h3 style="text-align: center; margin-bottom: 10px;">7 metros en contexto</h3>
+                <div id="contexto7m-tabla" style="overflow-x: auto;"></div>
+                <p style="font-size: 0.8rem; color: var(--text-muted); text-align: center;">
+                    Diferencia de marcador previa al lanzamiento · Empatado y Ajustado (|dif| ≤ 2) · períodos y últimos 5' del partido.
+                </p>
+            </div>
+        </div>
+
+        <div class="charts-row">
+            <div class="chart-box">
+                <h3 style="text-align: center; margin-bottom: 10px;">Goles — <span id="goles-a-nombre">A</span></h3>
+                <canvas id="chartGolesA"></canvas>
             </div>
             <div class="chart-box">
-                <h3 style="text-align: center; margin-bottom: 10px;">Distribución de Tiros</h3>
-                <canvas id="chartZonas"></canvas>
+                <h3 style="text-align: center; margin-bottom: 10px;">Goles — <span id="goles-b-nombre">B</span></h3>
+                <canvas id="chartGolesB"></canvas>
+            </div>
+        </div>
+
+        <div class="charts-row">
+            <div class="chart-box">
+                <h3 style="text-align: center; margin-bottom: 10px;">Distribución de Tiros — <span id="zonas-a-nombre">A</span></h3>
+                <canvas id="chartZonasA"></canvas>
             </div>
             <div class="chart-box">
-                <h3 style="text-align: center; margin-bottom: 10px;">Mapa de Calor en Portería</h3>
+                <h3 style="text-align: center; margin-bottom: 10px;">Distribución de Tiros — <span id="zonas-b-nombre">B</span></h3>
+                <canvas id="chartZonasB"></canvas>
+            </div>
+        </div>
+
+        <div class="charts-row">
+            <div class="chart-box">
+                <h3 style="text-align: center; margin-bottom: 10px;">Dónde marcó <span id="heat-a-nombre">A</span></h3>
                 <div class="heatmap-container">
-                    <div id="goal-heatmap" class="goal-map" style="position: relative;">
+                    <div id="goal-heatmap-a" class="goal-map" style="position: relative;">
+                        <!-- Cells injected via JS -->
+                    </div>
+                </div>
+                <p style="text-align: center; font-size: 0.8rem; margin-top: 10px; color: var(--text-muted);">
+                    Rojo: Mayoría de Goles | Azul: Paradas
+                </p>
+            </div>
+            <div class="chart-box">
+                <h3 style="text-align: center; margin-bottom: 10px;">Dónde marcó <span id="heat-b-nombre">B</span></h3>
+                <div class="heatmap-container">
+                    <div id="goal-heatmap-b" class="goal-map" style="position: relative;">
                         <!-- Cells injected via JS -->
                     </div>
                 </div>
@@ -101,19 +227,23 @@
                         <th>Goles/Lanz.</th>
                         <th>% Efic.</th>
                         <th>Asist.</th>
-                        <th>Paradas</th>
+                        <th>Paradas/Tiros</th>
+                        <th>% Paradas</th>
+                        <th>Par. por tipo</th>
                         <th>GKI</th>
                         <th>Excl.</th>
                         <th>Pérdidas</th>
-                        <th title="Proxy por posesión">+/- *</th>
                     </tr>
                 </thead>
                 <tbody>
                     <!-- Injected via JS -->
                 </tbody>
             </table>
+            <p style="font-size: 0.8rem; color: var(--text-muted);">
+                GKI = índice propio BS: pondera cada parada por dificultad
+                (6M ×1.0 · Contraataque ×0.9 · 7M ×0.85 · 9M ×0.6 · otro ×0.5).
+            </p>
         </div>
-        <p style="font-size: 0.8rem; color: var(--text-muted);">* +/- (Plus/Minus) calculado como proxy por posesión ante la falta de tracking de alineación completa (lineups).</p>
     </div>
 
     <!-- Cargar Chart.js vendorizado offline -->

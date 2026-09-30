@@ -113,9 +113,23 @@ const OfflineQueue = (() => {
         retryDelay = Math.min(retryDelay * 2, 30000); // Máx 30 segundos
     }
 
+    function getFailed(matchId) {
+        try {
+            return JSON.parse(localStorage.getItem(getFailedKey(matchId)) || '[]');
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function clearFailed(matchId) {
+        localStorage.removeItem(getFailedKey(matchId));
+    }
+
     return {
         enqueue,
         sync,
-        getQueue
+        getQueue,
+        getFailed,
+        clearFailed
     };
 })();

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Partidos - Balonmano Stats</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <style>
+        .partidos-list { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
+        .partido-card { background: var(--bg-card); padding: 15px; border-radius: var(--radius-lg); border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow-card); }
+        .partido-info h3 { margin: 0 0 5px 0; color: var(--text-main); }
+        .partido-info p { margin: 0; color: var(--text-muted); font-size: 0.9em; }
+        .partido-actions { display: flex; gap: 10px; }
+        .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .header-actions h1 { color: var(--text-main); }
+        .btn { padding: 8px 16px; border-radius: var(--radius-md); text-decoration: none; color: var(--text-main); background: var(--bg-card); border: 1px solid var(--border-color); cursor: pointer; font-size: 14px; }
+        .btn:hover { background: var(--bg-card-hover); border-color: #cbd5e1; }
+        .primary-btn { background: var(--primary-color); border-color: var(--primary-color); color: #fff; }
+        .primary-btn:hover { background: var(--accent-blue-hover); border-color: var(--accent-blue-hover); }
+        .status-badge { padding: 3px 8px; border-radius: var(--radius-full); font-size: 0.8em; font-weight: bold; margin-left: 10px;}
+        .status-PROGRAMADO { background: var(--bg-card-hover); color: var(--text-muted); }
+        .status-EN_CURSO { background: var(--success-color); color: #fff; }
+        .status-FINALIZADO { background: #0f172a; color: #fff; }
+    </style>
+
+    <link rel="manifest" href="/manifest.webmanifest">
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js');
+            });
+        }
+    </script>
+</head>
+
+<body>
+    <nav class="top-navbar">
+        <div class="top-navbar-left">
+            <button class="nav-back-btn" onclick="if (document.referrer && document.referrer.indexOf(window.location.host) !== -1) { history.back(); } else { window.location.href = '/partidos'; }" title="Volver a la pantalla anterior">
+                ← Volver
+            </button>
+            <a href="/partidos" class="nav-brand">🤾 Balonmano Stats</a>
+        </div>
+        <div class="top-navbar-right">
+            <a href="/partidos" class="nav-link active">📋 Partidos</a>
+            <a href="/" class="nav-link">⏱️ Captura</a>
+            <a href="/stats" class="nav-link">📊 Estadísticas</a>
+            <a href="/equipos" class="nav-link">👥 Equipos</a>
+            <a href="/nuevo_partido" class="nav-link">➕ Nuevo Partido</a>
+        </div>
+    </nav>
+    <div id="app-container" style="max-width: 800px; width: 100%; margin: 20px auto; padding: 20px;">
+        <div class="header-actions">
+            <h1>Partidos</h1>
+            <div>
+                <a href="/equipos" class="btn">Gestionar Equipos</a>
+                <a href="/nuevo_partido" class="btn primary-btn">Nuevo Partido</a>
+            </div>
+        </div>
+        
+        <div class="partidos-list" id="partidos-container">
+            Cargando partidos...
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            loadPartidos();
+        });
+
+        function loadPartidos() {
+            fetch('/api/matches')
+                .then(res => res.json())
+                .then(partidos => {
+                    const container = document.getElementById('partidos-container');
+                    container.innerHTML = '';
+                    if (partidos.length === 0) {
+                        container.innerHTML = '<p>No hay partidos registrados.</p>';
+                        return;
+                    }
+                    partidos.forEach(p => {
+                        const div = document.createElement('div');
+                        div.className = 'partido-card';
+                        
+                        let mainAction = '';
+                        if (p.estado === 'FINALIZADO') {
+                            mainAction = `<a href="/stats?match=${p.id_partido}" class="btn primary-btn">Ver Estadísticas</a>`;
+                        } else {
+                            mainAction = `<a href="/?match=${p.id_partido}" class="btn primary-btn">Capturar</a>`;
+                        }
+                        
+                        div.innerHTML = `
+                            <div class="partido-info">
+                                <h3>${p.nombre_a} vs ${p.nombre_b}</h3>
+                                <p>${p.fecha_partido} | ${p.competicion || 'Amistoso'} | Marcador: ${p.marcador_final_a} - ${p.marcador_final_b} 
+                                <span class="status-badge status-${p.estado}">${p.estado.replace('_', ' ')}</span></p>
+                            </div>
+                            <div class="partido-actions">
+                                ${mainAction}
+                                <button class="btn" style="background: var(--fail); border-color: var(--fail); color: #fff;" onclick="deleteMatch(${p.id_partido})">Borrar</button>
+                            </div>
+                        `;
+                        container.appendChild(div);
+                    });
+                });
+        }
+
+        function deleteMatch(id) {
+            if (confirm('¿Estás seguro de que deseas borrar este partido y TODAS sus estadísticas? Esta acción no se puede deshacer.')) {
+                fetch(`/api/matches/${id}`, { method: 'DELETE' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        loadPartidos();
+                    } else {
+                        alert('Error al borrar');
+                    }
+                });
+            }
+        }
+    </script>
+</body>
+</html>

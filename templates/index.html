@@ -5,109 +5,171 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Estadísticas de Balonmano</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+
+    <link rel="manifest" href="/manifest.webmanifest">
+    <script>
+        // Versión del HTML servido: el JS la compara con /api/version y, si no
+        // coincide (p. ej. HTML viejo cacheado), purga las cachés y recarga.
+        window.APP_VERSION = "{{ app_version }}";
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js');
+            });
+        }
+    </script>
 </head>
+
 <body>
+    <div id="nav-sensor" title="Acercá el mouse para mostrar la navegación"></div>
+    <nav class="top-navbar">
+        <div class="top-navbar-left">
+            <button class="nav-back-btn" onclick="if (document.referrer && document.referrer.indexOf(window.location.host) !== -1) { history.back(); } else { window.location.href = '/partidos'; }" title="Volver a la pantalla anterior">
+                ← Volver
+            </button>
+            <a href="/partidos" class="nav-brand">🤾 Balonmano Stats</a>
+        </div>
+        <div class="top-navbar-right">
+            <span id="sync-status" style="font-size: 0.75rem; padding: 4px 8px; background: var(--bg-card-hover); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-muted);">
+                🟢 Sincronizado
+            </span>
+            <button id="btn-sync-now" style="font-size: 0.7rem; padding: 3px; display: none;">Sincronizar ahora</button>
+            <button id="btn-backup-local" style="font-size: 0.7rem; padding: 3px;" onclick="window.descargarBackupLocal()">⬇ Respaldo</button>
+            <a href="/partidos" class="nav-link">📋 Partidos</a>
+            <a href="/?match={{ partido.id_partido if partido else '' }}" class="nav-link active">⏱️ Captura</a>
+            <a href="/stats?match={{ partido.id_partido if partido else '' }}" class="nav-link">📊 Estadísticas</a>
+            <a href="/equipos" class="nav-link">👥 Equipos</a>
+            <a href="/nuevo_partido" class="nav-link">➕ Nuevo Partido</a>
+        </div>
+    </nav>
     <div id="app-container">
         <!-- MARCADOR Y TIEMPO -->
         <header id="scoreboard">
             <div class="team-info" id="team-a-header">
                 <div class="possession-indicator hidden" id="possession-a">▶ POSESIÓN</div>
-                <h2 class="team-name" id="team-a-name">{{ partido.nombre_equipo_a if partido else 'Equipo Local' }}</h2>
+                <div class="sb-teamrow">
+                    <div class="crest">{{ (partido.nombre_equipo_a[:2] if partido else 'LO') | upper }}</div>
+                    <div class="sb-names">
+                        <div class="sb-meta">LOCAL · <span id="periodo-label">{% if partido and partido.periodo_actual == 2 %}2ª PARTE{% else %}1ª PARTE{% endif %}</span></div>
+                        <h2 class="team-name" id="team-a-name">{{ partido.nombre_equipo_a if partido else 'Equipo Local' }}</h2>
+                    </div>
+                </div>
                 <div class="score" id="score-a">0</div>
             </div>
             
             <div class="time-container">
+                <div class="live-pill"><span class="live-dot"></span>EN VIVO</div>
                 <div id="timer">00:00</div>
                 <div id="timer-controls">
                     <button id="start-btn" class="control-btn">▶ Iniciar</button>
                     <button id="stop-btn" class="control-btn">⏸ Detener</button>
                     <button id="reset-btn" class="control-btn">↺ Reiniciar</button>
                 </div>
+                <button id="finish-btn" class="control-btn" style="background: var(--error-container); border-color: #fecaca; color: var(--fatal);" onclick="finalizarPartido()">🏁 Finalizar</button>
             </div>
 
             <div class="team-info text-right" id="team-b-header">
                 <div class="possession-indicator hidden" id="possession-b">POSESIÓN ◀</div>
+                <div class="sb-teamrow right">
+                    <div class="sb-names">
+                        <div class="sb-meta">VISITANTE</div>
+                        <h2 class="team-name" id="team-b-name">{{ partido.nombre_equipo_b if partido else 'Equipo Visitante' }}</h2>
+                    </div>
+                    <div class="crest crest-b">{{ (partido.nombre_equipo_b[:2] if partido else 'VI') | upper }}</div>
+                </div>
                 <div class="score" id="score-b">0</div>
-                <h2 class="team-name" id="team-b-name">{{ partido.nombre_equipo_b if partido else 'Equipo Visitante' }}</h2>
             </div>
             <!-- Campo oculto para el id del partido -->
             <input type="hidden" id="match-id" value="{{ partido.id_partido if partido else '' }}">
+            <!-- Id del rival genérico (dorsal 0): actor de todo lo que hace el rival -->
+            {% for jugador in jugadores_b %}{% if jugador.numero_camiseta == 0 %}<input type="hidden" id="generic-rival-id" value="{{ jugador.id_jugador }}">{% endif %}{% endfor %}
         </header>
+        
+        <div id="failed-events-container" class="hidden" style="background: var(--error-container); border: 1px solid #fecaca; margin: 10px; padding: 10px; border-radius: 8px;">
+            <h4 style="color: var(--fatal); margin-top:0;">⚠️ Eventos Fallidos</h4>
+            <ul id="failed-events-list" style="list-style:none; padding:0; margin:0; font-size: 0.8rem; color: var(--text-main);"></ul>
+            <button onclick="window.limpiarFallidos()" style="margin-top: 10px; font-size: 0.8rem;">Limpiar listado</button>
+        </div>
 
         <!-- INTERFAZ PRINCIPAL -->
         <main id="game-interface">
             <!-- JUGADORES EQUIPO A -->
-            <aside class="team-column" id="team-a-players">
-                <h3>Plantilla Local</h3>
-                <ul class="player-list">
-                    {% for jugador in jugadores_a %}
-                    <li class="player-item" data-id="{{ jugador.id_jugador }}" data-team="A">
-                        <span class="player-num">{{ jugador.numero_camiseta }}</span>
-                        <span class="player-name">{{ jugador.nombre }}</span>
-                        <span class="player-excl hidden">2:00</span>
-                    </li>
-                    {% endfor %}
-                </ul>
+            <aside class="team-panel" id="team-a-players" style="flex: 2;">
+                <div class="team-header">
+                    <h3>Mi Equipo</h3>
+                    <span class="player-count badge">{{ jugadores_a|length }} convocados</span>
+                </div>
+                
+                <div class="roster-scroll-container">
+                    <div class="players-grid">
+                        {% for jugador in jugadores_a %}
+                        <div class="player-card{% if jugador.posicion == 'PORTERO' %} es-portero{% endif %}" data-id="{{ jugador.id_jugador }}" data-team="A" data-posicion="{{ jugador.posicion }}">
+                            <span class="player-num">{{ jugador.numero_camiseta }}</span>
+                            <span class="player-name">{{ jugador.nombre }}</span>
+                            {% if jugador.posicion == 'PORTERO' %}<button class="keeper-toggle" data-keeper-id="{{ jugador.id_jugador }}" data-keeper-team="A" title="Marcar como arquero en cancha">🧤</button>{% endif %}
+                            <div class="player-excl hidden">2:00</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
             </aside>
 
             <!-- PANEL DE ACCIONES CENTRAL -->
             <section id="action-panel">
-                <div class="action-feedback" id="action-feedback">
-                    Selecciona un jugador para continuar...
-                </div>
-
-                <div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-bottom: 10px; color: var(--text-light); font-size: 0.9rem;">
-                    <label for="lock-player-toggle" style="cursor: pointer; user-select: none;">📌 Mantener jugador seleccionado (Captura <3 clics):</label>
-                    <input type="checkbox" id="lock-player-toggle" checked style="cursor: pointer; transform: scale(1.2);">
+                <div class="action-feedback feedback-row" id="action-feedback">
+                    <span id="action-feedback-text">Selecciona un jugador para continuar...</span>
+                    <label class="lock-chip" for="lock-player-toggle" title="Mantener jugador seleccionado para encadenar acciones con menos clics">📌 Fijar<input type="checkbox" id="lock-player-toggle" checked></label>
                 </div>
                 
                 <div class="actions-grid disabled" id="actions-container">
                     <!-- ACCIONES OFENSIVAS -->
-                    <div class="action-group">
+                    <div class="action-group action-group-offense">
                         <h4>Ofensiva</h4>
-                        <button class="action-btn" data-event-type="LANZAMIENTO_6M" data-requires-outcome="true">Lanzamiento 6m</button>
-                        <button class="action-btn" data-event-type="LANZAMIENTO_9M" data-requires-outcome="true">Lanzamiento 9m</button>
-                        <button class="action-btn" data-event-type="LANZAMIENTO_7M" data-requires-outcome="true">Lanzamiento 7m</button>
-                        <button class="action-btn" data-event-type="CONTRAATAQUE" data-requires-outcome="true">Contraataque</button>
-                        <button class="action-btn" data-event-type="ASISTENCIA" data-requires-outcome="false">Asistencia</button>
-                        <button class="action-btn" data-event-type="PERDIDA_BALON" data-requires-outcome="false">Pérdida</button>
+                        <button class="action-btn btn-offensive" data-event-type="LANZAMIENTO_6M" data-requires-outcome="true">Lanzamiento 6m</button>
+                        <button class="action-btn btn-offensive" data-event-type="CONTRAATAQUE" data-requires-outcome="true">Contraataque</button>
+                        <button class="action-btn btn-offensive" data-event-type="LANZAMIENTO_9M" data-requires-outcome="true">Lanzamiento 9m</button>
+                        <button class="action-btn btn-offensive" data-event-type="ASISTENCIA" data-requires-outcome="false">Asistencia</button>
+                        <button class="action-btn btn-offensive" data-event-type="LANZAMIENTO_7M" data-requires-outcome="true">Lanzamiento 7m</button>
+                        <button class="action-btn btn-error" data-event-type="PERDIDA_BALON" data-requires-outcome="false">Pérdida</button>
                     </div>
 
                     <!-- ACCIONES DEFENSIVAS -->
                     <div class="action-group">
-                        <h4>Defensiva y Faltas</h4>
-                        <button class="action-btn" data-event-type="PARADA_PORTERO" data-requires-outcome="false">Parada (Portero)</button>
-                        <button class="action-btn" data-event-type="ROBO_BALON" data-requires-outcome="false">Robo</button>
-                        <button class="action-btn" data-event-type="BLOQUEO" data-requires-outcome="false">Bloqueo</button>
-                        <button class="action-btn" data-event-type="FALTA" data-requires-outcome="false">Falta</button>
-                        <button class="action-btn" data-event-type="FALTA_TECNICA" data-requires-outcome="false">Falta Técnica</button>
+                        <h4>Defensiva</h4>
+                        <button class="action-btn btn-defensive" data-event-type="ROBO_BALON" data-requires-outcome="false">Robo</button>
+                        <button class="action-btn btn-defensive" data-event-type="BLOQUEO" data-requires-outcome="false">Bloqueo</button>
                     </div>
 
                     <!-- DISCIPLINARIAS -->
                     <div class="action-group">
                         <h4>Sanciones</h4>
-                        <button class="action-btn warning-btn" data-event-type="AMARILLA" data-requires-outcome="false">Amarilla</button>
-                        <button class="action-btn danger-btn" data-event-type="EXCLUSION_2MIN" data-requires-outcome="false">Exclusión (2 min)</button>
-                        <button class="action-btn fatal-btn" data-event-type="DESCALIFICACION" data-requires-outcome="false">Roja</button>
+                        <button class="action-btn btn-yellow" data-event-type="AMARILLA" data-requires-outcome="false">Amarilla</button>
+                        <button class="action-btn btn-purple" data-event-type="EXCLUSION_2MIN" data-requires-outcome="false">Exclusión (2 min)</button>
+                        <button class="action-btn btn-red" data-event-type="DESCALIFICACION" data-requires-outcome="false">Roja</button>
+                    </div>
+
+                    <!-- RIVAL (sin selección: van directo al rival genérico) -->
+                    <div class="action-group action-group-rival">
+                        <h4>Rival</h4>
+                        <button class="action-btn btn-purple" data-event-type="EXCLUSION_2MIN" data-requires-outcome="false" data-rival="true">⏱ 2 min rival</button>
+                        <button class="action-btn btn-error" data-event-type="PERDIDA_BALON" data-requires-outcome="false" data-rival="true">🔄 Pérdida rival</button>
+                        <button class="action-btn btn-red" data-event-type="DESCALIFICACION" data-requires-outcome="false" data-rival="true">🔴 Roja rival</button>
                     </div>
                 </div>
 
-                <!-- MODAL DE MAPAS (Tracker Visual) -->
-                <div id="outcome-modal" class="hidden full-modal">
-                    <h4>Tracker de Lanzamiento</h4>
-                    
-                    <div class="shot-tracker-container">
-                        <!-- MAPA DE LA PISTA -->
-                        <div class="tracker-section">
-                            <p>1. Origen del tiro en la pista</p>
-                            <div id="court-map" class="court-map">
-                                <div id="shot-marker-court" class="marker hidden"></div>
-                            </div>
+                <!-- MODAL DE RESULTADO + ZONA DEL ARCO (zona obligatoria en Gol/Parada) -->
+                <div id="outcome-modal" class="hidden full-modal" style="max-width: min(680px, calc(100vw - 32px)); padding: 20px;">
+                    <h4 style="text-align:center; color: var(--text-main); margin-bottom: 8px;">Resultado del Lanzamiento</h4>
+
+                    <div class="outcome-side">
+                        <div class="outcome-buttons mt-20" style="display:flex; flex-direction:column; gap:8px;">
+                            <button class="outcome-btn success" data-outcome="GOL" style="font-size: 1.2rem; padding: 12px;">Gol</button>
+                            <button class="outcome-btn info-btn" data-outcome="PARADA" style="font-size: 1.1rem; padding: 10px;">Parada</button>
+                            <button class="outcome-btn fail" data-outcome="FALLO" style="font-size: 1.1rem; padding: 10px;">Fallo</button>
+                            <button class="outcome-btn warning-btn" data-outcome="BLOQUEADO" style="font-size: 1.1rem; padding: 10px;">Bloqueado</button>
                         </div>
 
-                        <!-- MAPA DE LA PORTERÍA -->
-                        <div class="tracker-section">
-                            <p>2. Destino en la portería</p>
+                        <div class="outcome-zone">
+                            <p id="zone-hint">1. Tocá el resultado · 2. Si es Gol o Parada, tocá la zona del arco</p>
                             <div id="goal-map" class="goal-map">
                                 <div class="goal-zone" data-zone="TL"></div>
                                 <div class="goal-zone" data-zone="TC"></div>
@@ -121,39 +183,14 @@
                             </div>
                         </div>
                     </div>
-
-                    <div class="outcome-buttons mt-20">
-                        <p style="width:100%; text-align:center; color:white; margin-bottom:10px;">3. Selecciona el resultado para finalizar</p>
-                        <button class="outcome-btn success" data-outcome="GOL">Gol</button>
-                        <button class="outcome-btn fail" data-outcome="FALLO">Fallo</button>
-                        <button class="outcome-btn default" data-outcome="POSTE">Poste</button>
-                        <button class="outcome-btn default" data-outcome="PARADA">Parada</button>
-                        <button class="outcome-btn warning-btn" data-outcome="BLOQUEADO" style="flex:1;">Bloqueado</button>
-                    </div>
-                    <button class="cancel-btn" id="cancel-outcome">Cancelar Lanzamiento</button>
+                    <button class="cancel-btn" id="cancel-outcome" style="margin-top: 14px; width: 100%;">Cancelar Lanzamiento</button>
                 </div>
-            </section>
 
-            <!-- JUGADORES EQUIPO B -->
-            <aside class="team-column" id="team-b-players">
-                <h3>Plantilla Visitante</h3>
-                <ul class="player-list">
-                    {% for jugador in jugadores_b %}
-                    <li class="player-item" data-id="{{ jugador.id_jugador }}" data-team="B">
-                        <span class="player-num">{{ jugador.numero_camiseta }}</span>
-                        <span class="player-name">{{ jugador.nombre }}</span>
-                        <span class="player-excl hidden">2:00</span>
-                    </li>
-                    {% endfor %}
-                </ul>
-            </aside>
+            </section>
         </main>
         
-        <!-- SECCIÓN DE REPORTES (BIG DATA) -->
-        <footer id="reports-section" style="display: flex; gap: 15px; margin-top: 20px; justify-content: center;">
-            <button class="action-btn" id="btn-export-json" style="background-color: var(--accent-blue);">📥 Exportar JSON (Métricas EHF)</button>
-            <button class="action-btn" id="btn-view-stats" style="background-color: var(--warning);" onclick="window.location.href='/stats?match=' + document.getElementById('match-id').value">📊 Calcular Estadísticas Avanzadas</button>
-        </footer>
+        <!-- TIRA DE ÚLTIMOS EVENTOS -->
+        <div id="timeline-strip"><span class="tl-label">ÚLTIMOS EVENTOS</span><span id="last-events"></span><button id="btn-undo" class="control-btn" onclick="window.deshacerUltimo()" title="Deshacer último evento">↶ DESHACER</button></div>
     </div>
 
     <!-- TOAST NOTIFICATION -->

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estadísticas de Temporada</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js');
+            });
+        }
+    </script>
+</head>
+<body>
+    <nav class="top-navbar">
+        <div class="top-navbar-left">
+            <button class="nav-back-btn" onclick="if (document.referrer && document.referrer.indexOf(window.location.host) !== -1) { history.back(); } else { window.location.href = '/partidos'; }" title="Volver a la pantalla anterior">
+                ← Volver
+            </button>
+            <a href="/partidos" class="nav-brand">🤾 Balonmano Stats</a>
+        </div>
+        <div class="top-navbar-right">
+            <a href="/partidos" class="nav-link">📋 Partidos</a>
+            <a href="/" class="nav-link">⏱️ Captura</a>
+            <a href="/stats" class="nav-link">📊 Estadísticas</a>
+            <a href="/equipos" class="nav-link active">👥 Equipos</a>
+            <a href="/nuevo_partido" class="nav-link">➕ Nuevo Partido</a>
+        </div>
+    </nav>
+    <div id="app-container" style="display: block; overflow-y: auto; padding: 20px;">
+        <header style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+            <h2 id="equipo-titulo">Estadísticas Acumuladas</h2>
+            <div>
+                <a href="/equipos" class="control-btn" style="text-decoration: none; padding: 5px 10px;">Volver a Equipos</a>
+            </div>
+        </header>
+
+        <div style="background: var(--bg-card); padding: 15px; border-radius: var(--radius-lg); border: 1px solid var(--border-color); box-shadow: var(--shadow-card); margin-bottom: 20px;">
+            <h3>Acumulado del Plantel</h3>
+            <div style="overflow-x: auto;">
+                <table class="stats-table" id="temporada-table">
+                    <thead>
+                        <tr>
+                            <th>Jugador</th>
+                            <th>PJ</th>
+                            <th>Goles / Tiros</th>
+                            <th>% Efic.</th>
+                            <th>Asist.</th>
+                            <th>Paradas</th>
+                            <th>Pérdidas</th>
+                            <th>Robos</th>
+                            <th>Bloqueos</th>
+                            <th>Excl.</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="10" style="text-align: center;">Cargando estadísticas...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div style="background: var(--bg-card); padding: 15px; border-radius: var(--radius-lg); border: 1px solid var(--border-color); box-shadow: var(--shadow-card); margin-bottom: 20px;">
+            <h3>Eficacia Goleadora por Jugador</h3>
+            <canvas id="golesChart" width="400" height="200"></canvas>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='vendor/chart.min.js') }}"></script>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const equipoId = urlParams.get('equipo');
+
+        if (!equipoId) {
+            alert('Debe seleccionar un equipo');
+            window.location.href = '/equipos';
+        } else {
+            fetch(`/api/equipos/${equipoId}/temporada`)
+                .then(res => res.json())
+                .then(data => {
+                    const tbody = document.querySelector('#temporada-table tbody');
+                    tbody.innerHTML = '';
+                    
+                    data.sort((a,b) => b.goles - a.goles); // Ordenar por goles
+
+                    data.forEach(p => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td style="text-align: left; font-weight: bold;">${p.nombre} ${p.posicion === 'PORTERO' ? '(P)' : ''}</td>
+                            <td>${p.partidos_jugados}</td>
+                            <td>${p.goles} / ${p.tiros}</td>
+                            <td>${p.tiros > 0 ? p.efic + '%' : '-'}</td>
+                            <td>${p.asistencias}</td>
+                            <td>${p.posicion === 'PORTERO' ? p.paradas : '-'}</td>
+                            <td>${p.perdidas}</td>
+                            <td>${p.robos}</td>
+                            <td>${p.bloqueos}</td>
+                            <td>${p.exclusiones}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+
+                    // Gráfico Simple de Goles y Tiros
+                    const ctx = document.getElementById('golesChart').getContext('2d');
+                    
+                    // Filtrar jugadores con tiros o goles
+                    const activos = data.filter(p => p.tiros > 0 || p.goles > 0).slice(0, 15);
+                    
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: activos.map(p => p.nombre.split(' ')[0]),
+                            datasets: [
+                                {
+                                    label: 'Goles',
+                                    data: activos.map(p => p.goles),
+                                    backgroundColor: 'rgba(0, 81, 213, 0.85)'
+                                },
+                                {
+                                    label: 'Tiros Totales',
+                                    data: activos.map(p => p.tiros),
+                                    backgroundColor: 'rgba(0, 81, 213, 0.25)'
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            color: '#0b1c30',
+                            scales: {
+                                y: { beginAtZero: true, ticks: { color: '#64748b' }, grid: { color: '#e2e8f0' } },
+                                x: { ticks: { color: '#64748b' }, grid: { color: '#f1f5f9' } }
+                            },
+                            plugins: {
+                                legend: { position: 'top', labels: { color: '#0b1c30' } },
+                            }
+                        }
+                    });
+
+                })
+                .catch(err => {
+                    document.querySelector('#temporada-table tbody').innerHTML = '<tr><td colspan="10">Error al cargar datos.</td></tr>';
+                });
+        }
+    </script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 import sqlite3
-from flask import current_app, g
+from flask import current_app, g, has_app_context
 from contextlib import contextmanager
 
 def get_db():
@@ -26,7 +26,7 @@ def get_db_connection():
     así como scripts fuera de request context.
     """
     # Si estamos dentro de un request context de Flask
-    if current_app:
+    if has_app_context():
         conn = get_db()
         try:
             yield conn

@@ -18,6 +18,19 @@ const TimerModule = (() => {
         matchId = matchIdEl.value;
     }
 
+    function periodoDesdeSegundos(secs) {
+        // Regla única (espejo de periodo_desde_segundos en services/eventos.py):
+        // floor(seg/1800)+1. 0–1799 → 1, 1800–3599 → 2, 3600+ → prórroga (3+).
+        let s = parseInt(secs) || 0;
+        if (s < 0) s = 0;
+        return Math.floor(s / duracionPeriodo) + 1;
+    }
+
+    function actualizarEtiquetaPeriodo() {
+        const el = document.getElementById('periodo-label');
+        if (!el) return;
+        el.textContent = periodoActual >= 3 ? 'PRÓRROGA' : (periodoActual === 2 ? '2ª PARTE' : '1ª PARTE');
+    }
     function formatSeconds(secs) {
         const minutes = Math.floor(secs / 60);
         const seconds = secs % 60;
@@ -55,9 +68,12 @@ const TimerModule = (() => {
                 syncStateWithServer();
             }
 
-            // Notificación de fin de periodo (30 min)
-            if (totalSeconds > 0 && totalSeconds % duracionPeriodo === 0) {
-                periodoActual++;
+            // Período derivado de los segundos (no por evento disparado):
+            // funciona aunque la sesión arranque a los 31' o se recargue.
+            const derivado = periodoDesdeSegundos(totalSeconds);
+            if (derivado > periodoActual) {
+                periodoActual = derivado;
+                actualizarEtiquetaPeriodo();
                 alert(`¡Fin del periodo ${periodoActual - 1}! Comenzando periodo ${periodoActual}.`);
                 syncStateWithServer();
             }
@@ -78,14 +94,31 @@ const TimerModule = (() => {
         if (confirm('¿Estás seguro de reiniciar el cronómetro?')) {
             stopTimer();
             totalSeconds = 0;
+            periodoActual = 1;
             updateDisplay();
+            actualizarEtiquetaPeriodo();
             syncStateWithServer();
         }
     }
 
     function setSeconds(secs) {
         totalSeconds = parseInt(secs) || 0;
+        // Recalcular período en silencio (sin alerta): restaura la verdad
+        // aunque la página se recargue a mitad de la 2ª parte.
+        const derivado = periodoDesdeSegundos(totalSeconds);
+        if (derivado > periodoActual) {
+            periodoActual = derivado;
+        }
         updateDisplay();
+        actualizarEtiquetaPeriodo();
+    }
+
+    function setPeriodo(p) {
+        // Verdad del servidor (loadMatchState): nunca decrece por debajo
+        // del derivado de los segundos.
+        const n = parseInt(p) || 1;
+        periodoActual = Math.max(n, periodoDesdeSegundos(totalSeconds));
+        actualizarEtiquetaPeriodo();
     }
 
     function getSeconds() {
@@ -97,9 +130,14 @@ const TimerModule = (() => {
         return formatSeconds(totalSeconds);
     }
 
+    function getPeriodo() {
+        return periodoActual;
+    }
+
     if (startBtn) startBtn.addEventListener('click', startTimer);
     if (stopBtn) stopBtn.addEventListener('click', stopTimer);
     if (resetBtn) resetBtn.addEventListener('click', resetTimer);
+    actualizarEtiquetaPeriodo();
 
     return {
         startTimer,
@@ -108,6 +146,8 @@ const TimerModule = (() => {
         getCurrentTime,
         getSeconds,
         setSeconds,
-        formatSeconds
+        formatSeconds,
+        getPeriodo,
+        setPeriodo
     };
 })();

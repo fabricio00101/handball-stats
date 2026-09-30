@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Equipos - Balonmano Stats</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <style>
+        .container { max-width: 900px; width: 100%; margin: 20px auto; padding: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .header h1 { color: var(--text-main); }
+        .panel { background: var(--bg-card); padding: 20px; border-radius: var(--radius-lg); border: 1px solid var(--border-color); margin-bottom: 20px; box-shadow: var(--shadow-card); }
+        .panel h3, .panel h4 { color: var(--text-main); }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; color: var(--text-muted); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+        .form-group input, .form-group select { width: 100%; padding: 8px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); }
+        .form-group input::placeholder { color: #94a3b8; }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent-blue); box-shadow: var(--focus-ring-cobalt); }
+        .btn { padding: 8px 16px; border-radius: var(--radius-md); text-decoration: none; color: var(--text-main); background: var(--bg-card); border: 1px solid var(--border-color); cursor: pointer; font-size: 14px; }
+        .btn:hover { background: var(--bg-card-hover); border-color: #cbd5e1; }
+        .primary-btn { background: var(--primary-color); border-color: var(--primary-color); color: #fff; }
+        .primary-btn:hover { background: var(--accent-blue-hover); border-color: var(--accent-blue-hover); }
+        
+        .equipos-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; }
+        .lista-equipos { border-right: 1px solid var(--border-color); padding-right: 20px; }
+        .lista-equipos h3 { color: var(--text-main); }
+        .equipo-item { padding: 10px; cursor: pointer; border-radius: var(--radius-md); margin-bottom: 5px; color: var(--text-main); border-left: 3px solid transparent; display: flex; align-items: center; gap: 8px; }
+        .equipo-item:hover { background: var(--bg-card-hover); }
+        .equipo-item.active { background: var(--bg-card-highest); border-left-color: var(--accent-blue); font-weight: 600; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; color: var(--text-main); }
+        th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--bg-card-hover); }
+        th { color: var(--text-muted); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; background: var(--bg-main); }
+        tbody tr:nth-child(even) { background: var(--bg-main); }
+        tbody tr:hover { background: var(--bg-card-hover); }
+    </style>
+
+    <link rel="manifest" href="/manifest.webmanifest">
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js');
+            });
+        }
+    </script>
+</head>
+
+<body>
+    <nav class="top-navbar">
+        <div class="top-navbar-left">
+            <button class="nav-back-btn" onclick="if (document.referrer && document.referrer.indexOf(window.location.host) !== -1) { history.back(); } else { window.location.href = '/partidos'; }" title="Volver a la pantalla anterior">
+                ← Volver
+            </button>
+            <a href="/partidos" class="nav-brand">🤾 Balonmano Stats</a>
+        </div>
+        <div class="top-navbar-right">
+            <a href="/partidos" class="nav-link">📋 Partidos</a>
+            <a href="/" class="nav-link">⏱️ Captura</a>
+            <a href="/stats" class="nav-link">📊 Estadísticas</a>
+            <a href="/equipos" class="nav-link active">👥 Equipos</a>
+            <a href="/nuevo_partido" class="nav-link">➕ Nuevo Partido</a>
+        </div>
+    </nav>
+    <div class="container">
+        <div class="header">
+            <h1>Gestión de Equipos</h1>
+            <a href="/partidos" class="btn">Volver a Partidos</a>
+        </div>
+        
+        <div class="equipos-grid">
+            <div class="lista-equipos">
+                <h3>Equipos</h3>
+                <div class="form-group" style="display:flex; gap:10px;">
+                    <input type="text" id="nuevo-equipo-nombre" placeholder="Nombre del equipo">
+                    <button class="btn primary-btn" onclick="crearEquipo()">+</button>
+                </div>
+                <div id="equipos-list"></div>
+            </div>
+            
+            <div class="plantel-panel" id="plantel-panel" style="display:none;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h3 id="equipo-titulo">Plantel</h3>
+                    <a id="btn-temporada" href="#" class="btn" style="background:var(--success); color:white; font-size:0.9rem;">📊 Stats Temporada</a>
+                </div>
+                
+                <div class="panel">
+                    <h4>Añadir Jugador</h4>
+                    <div style="display:grid; grid-template-columns: 2fr 1fr 1fr auto; gap:10px; align-items:end;">
+                        <div class="form-group">
+                            <label>Nombre</label>
+                            <input type="text" id="jug-nombre">
+                        </div>
+                        <div class="form-group">
+                            <label>Dorsal</label>
+                            <input type="number" id="jug-dorsal">
+                        </div>
+                        <div class="form-group">
+                            <label>Posición</label>
+                            <select id="jug-pos">
+                                <option value="CAMPO">Campo</option>
+                                <option value="PORTERO">Portero</option>
+                            </select>
+                        </div>
+                        <button class="btn primary-btn" onclick="agregarJugador()" style="margin-bottom:15px;">Añadir</button>
+                    </div>
+                </div>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Dorsal</th>
+                            <th>Nombre</th>
+                            <th>Posición</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="plantel-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let equipoActual = null;
+        
+        function cargarEquipos() {
+            fetch('/api/equipos')
+                .then(r => r.json())
+                .then(data => {
+                    const list = document.getElementById('equipos-list');
+                    list.innerHTML = '';
+                    data.forEach(e => {
+                        const div = document.createElement('div');
+                        div.className = `equipo-item ${equipoActual === e.id_equipo ? 'active' : ''}`;
+                        div.onclick = () => seleccionarEquipo(e.id_equipo, e.nombre);
+                        const nombre = document.createElement('span');
+                        nombre.innerText = e.nombre;
+                        nombre.style.flex = '1';
+                        const borrar = document.createElement('button');
+                        borrar.className = 'btn';
+                        borrar.title = `Borrar ${e.nombre}`;
+                        borrar.textContent = '🗑';
+                        borrar.style.padding = '2px 8px';
+                        borrar.onclick = (ev) => { ev.stopPropagation(); borrarEquipo(e.id_equipo, e.nombre); };
+                        div.appendChild(nombre);
+                        div.appendChild(borrar);
+                        list.appendChild(div);
+                    });
+                });
+        }
+        
+        function crearEquipo() {
+            const nombre = document.getElementById('nuevo-equipo-nombre').value;
+            if(!nombre) return;
+            fetch('/api/equipos', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({nombre, es_propio: 0})
+            }).then(() => {
+                document.getElementById('nuevo-equipo-nombre').value = '';
+                cargarEquipos();
+            });
+        }
+        
+        function seleccionarEquipo(id, nombre) {
+            equipoActual = id;
+            document.getElementById('equipo-titulo').innerText = `Plantel de ${nombre}`;
+            document.getElementById('btn-temporada').href = `/temporada?equipo=${id}`;
+            document.getElementById('plantel-panel').style.display = 'block';
+            cargarEquipos(); // refresh active state
+            cargarPlantel();
+        }
+
+        function borrarEquipo(id, nombre) {
+            if (!confirm(`¿Borrar el equipo "${nombre}" y su plantel? No se puede borrar si tiene partidos asociados.`)) return;
+            fetch(`/api/equipos/${id}`, { method: 'DELETE' })
+                .then(async r => {
+                    const data = await r.json().catch(() => ({}));
+                    if (!r.ok) throw new Error(data.error || 'Error al borrar');
+                    if (equipoActual === id) {
+                        equipoActual = null;
+                        document.getElementById('plantel-panel').style.display = 'none';
+                    }
+                    cargarEquipos();
+                })
+                .catch(err => alert(err.message));
+        }
+        
+        let plantelActual = [];
+
+        function escapeHtml(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+        
+        function cargarPlantel() {
+            fetch(`/api/equipos/${equipoActual}/plantel`)
+                .then(r => r.json())
+                .then(data => {
+                    plantelActual = data;
+                    renderPlantel();
+                });
+        }
+
+        function renderPlantel() {
+            const tbody = document.getElementById('plantel-tbody');
+            tbody.innerHTML = '';
+            plantelActual.forEach(j => {
+                const tr = document.createElement('tr');
+                if (!j.activo) tr.style.opacity = '0.45';
+                tr.innerHTML = `
+                    <td>${j.numero_habitual == null ? '' : j.numero_habitual}</td>
+                    <td>${escapeHtml(j.nombre)}${j.activo ? '' : ' (inactivo)'}</td>
+                    <td>${j.posicion_habitual}</td>
+                    <td style="white-space:nowrap;">
+                        <button class="btn" onclick="editarJugador(${j.id_plantel})" title="Editar">✏️</button>
+                        <button class="btn" onclick="toggleActivo(${j.id_plantel}, ${j.activo ? 0 : 1})" title="${j.activo ? 'Desactivar' : 'Reactivar'}">${j.activo ? '⏻' : '✓'}</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function editarJugador(id) {
+            const idx = plantelActual.findIndex(x => x.id_plantel === id);
+            if (idx < 0) return;
+            const j = plantelActual[idx];
+            const tr = document.getElementById('plantel-tbody').querySelectorAll('tr')[idx];
+            if (!tr) return;
+            tr.style.opacity = '';
+            tr.innerHTML = `
+                <td><input type="number" id="edit-num-${id}" value="${j.numero_habitual == null ? '' : j.numero_habitual}" style="width:70px;"></td>
+                <td><input type="text" id="edit-nombre-${id}" value="${escapeHtml(j.nombre)}" style="width:100%;"></td>
+                <td><select id="edit-pos-${id}">
+                    <option value="CAMPO" ${j.posicion_habitual==='CAMPO'?'selected':''}>Campo</option>
+                    <option value="PORTERO" ${j.posicion_habitual==='PORTERO'?'selected':''}>Portero</option>
+                </select></td>
+                <td style="white-space:nowrap;">
+                    <button class="btn primary-btn" onclick="guardarJugador(${id})">Guardar</button>
+                    <button class="btn" onclick="renderPlantel()">Cancelar</button>
+                </td>
+            `;
+        }
+
+        function guardarJugador(id) {
+            const nombre = document.getElementById(`edit-nombre-${id}`).value.trim();
+            const numStr = document.getElementById(`edit-num-${id}`).value;
+            const pos = document.getElementById(`edit-pos-${id}`).value;
+            if (!nombre) { alert('El nombre no puede estar vacío'); return; }
+            const num = numStr === '' ? null : parseInt(numStr);
+            if (numStr !== '' && isNaN(num)) { alert('Dorsal inválido'); return; }
+            const repetido = num !== null && plantelActual.some(x =>
+                x.id_plantel !== id && x.numero_habitual !== null && parseInt(x.numero_habitual) === num);
+            if (repetido) { alert(`Dorsal ${num} repetido en el plantel`); return; }
+            fetch(`/api/plantel/${id}`, {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ nombre: nombre, numero_habitual: num, posicion_habitual: pos })
+            }).then(async r => {
+                if (!r.ok) throw new Error('Error al guardar');
+                cargarPlantel();
+            }).catch(err => alert(err.message));
+        }
+
+        function toggleActivo(id, valor) {
+            fetch(`/api/plantel/${id}`, {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ activo: valor })
+            }).then(() => cargarPlantel());
+        }
+        
+        function agregarJugador() {
+            const nombre = document.getElementById('jug-nombre').value;
+            const dorsal = document.getElementById('jug-dorsal').value;
+            const pos = document.getElementById('jug-pos').value;
+            
+            if(!nombre) return;
+            
+            fetch(`/api/equipos/${equipoActual}/plantel`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    nombre, 
+                    numero_habitual: dorsal, 
+                    posicion_habitual: pos
+                })
+            }).then(() => {
+                document.getElementById('jug-nombre').value = '';
+                document.getElementById('jug-dorsal').value = '';
+                cargarPlantel();
+            });
+        }
+        
+        document.addEventListener('DOMContentLoaded', cargarEquipos);
+    </script>
+</body>
+</html>

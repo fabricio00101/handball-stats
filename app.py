@@ -30,4 +30,15 @@ def create_app(config_class=config.Config):
 app = create_app()
 
 if __name__ == '__main__':
-    app.run(debug=app.config.get('DEBUG', False), port=5000)
+    debug_mode = app.config.get('DEBUG', False)
+    if debug_mode:
+        app.run(debug=True, port=5000)
+    else:
+        try:
+            from waitress import serve
+            print("Iniciando servidor en modo producción (Waitress) en el puerto 5000...")
+            serve(app, host='0.0.0.0', port=5000)
+        except ImportError:
+            print("Waitress no está instalado. Instalalo usando 'pip install waitress'.")
+            print("Iniciando con el servidor de desarrollo de Flask por defecto...")
+            app.run(host='0.0.0.0', port=5000)

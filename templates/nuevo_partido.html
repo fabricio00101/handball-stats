@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nuevo Partido - Balonmano Stats</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <style>
+        .container { max-width: 900px; width: 100%; margin: 20px auto; padding: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .header h1 { color: var(--text-main); }
+        .panel { background: var(--bg-card); padding: 20px; border-radius: var(--radius-lg); border: 1px solid var(--border-color); margin-bottom: 20px; box-shadow: var(--shadow-card); }
+        .panel h3 { color: var(--text-main); }
+        .form-row { display: flex; gap: 20px; margin-bottom: 15px; }
+        .form-group { flex: 1; }
+        .form-group label { display: block; margin-bottom: 5px; color: var(--text-muted); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+        .form-group input, .form-group select { width: 100%; padding: 8px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); box-sizing: border-box; }
+        .form-group input::placeholder { color: #94a3b8; }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent-blue); box-shadow: var(--focus-ring-cobalt); }
+        .btn { padding: 8px 16px; border-radius: var(--radius-md); text-decoration: none; color: var(--text-main); background: var(--bg-card); border: 1px solid var(--border-color); cursor: pointer; font-size: 14px; }
+        .btn:hover { background: var(--bg-card-hover); border-color: #cbd5e1; }
+        .primary-btn { background: var(--primary-color); border-color: var(--primary-color); color: #fff; }
+        .primary-btn:hover { background: var(--accent-blue-hover); border-color: var(--accent-blue-hover); }
+        
+        .convocatoria-grid { display: grid; grid-template-columns: 1fr; gap: 20px; max-width: 600px; margin: 0 auto;}
+        .equipo-list { border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 10px; max-height: 400px; overflow-y: auto; background: var(--bg-card); }
+        .equipo-list h4 { margin-top: 0; display: flex; justify-content: space-between; color: var(--text-main); }
+        
+        .jugador-item { display: flex; align-items: center; gap: 10px; padding: 8px; border-bottom: 1px solid var(--bg-card-hover); color: var(--text-main); }
+        .jugador-item:last-child { border-bottom: none; }
+        .jugador-item input[type="number"] { width: 50px; padding: 4px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-main); }
+        .jugador-item select { padding: 4px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-main); }
+    </style>
+
+    <link rel="manifest" href="/manifest.webmanifest">
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js');
+            });
+        }
+    </script>
+</head>
+
+<body>
+    <nav class="top-navbar">
+        <div class="top-navbar-left">
+            <button class="nav-back-btn" onclick="if (document.referrer && document.referrer.indexOf(window.location.host) !== -1) { history.back(); } else { window.location.href = '/partidos'; }" title="Volver a la pantalla anterior">
+                ← Volver
+            </button>
+            <a href="/partidos" class="nav-brand">🤾 Balonmano Stats</a>
+        </div>
+        <div class="top-navbar-right">
+            <a href="/partidos" class="nav-link">📋 Partidos</a>
+            <a href="/" class="nav-link">⏱️ Captura</a>
+            <a href="/stats" class="nav-link">📊 Estadísticas</a>
+            <a href="/equipos" class="nav-link">👥 Equipos</a>
+            <a href="/nuevo_partido" class="nav-link active">➕ Nuevo Partido</a>
+        </div>
+    </nav>
+    <div class="container">
+        <div class="header">
+            <h1>Nuevo Partido</h1>
+            <a href="/partidos" class="btn">Cancelar</a>
+        </div>
+        
+        <div class="panel">
+            <h3>Datos Generales</h3>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Mi Equipo</label>
+                    <select id="sel-eq-a" onchange="cargarPlantel('A')"></select>
+                </div>
+                <div class="form-group">
+                    <label>Nombre del Rival</label>
+                    <input type="text" id="nombre-rival" placeholder="Ej: Club Balonmano X">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Competición</label>
+                    <input type="text" id="competicion" placeholder="Liga, Amistoso...">
+                </div>
+                <div class="form-group">
+                    <label>Fecha y Hora</label>
+                    <input type="datetime-local" id="fecha">
+                </div>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h3>Convocatoria de Mi Equipo</h3>
+            <p style="font-size: 0.9em; color: var(--text-muted); margin-bottom: 15px;">Selecciona hasta 16 jugadores. Se creará automáticamente un plantel predeterminado de 16 jugadores para el equipo rival.</p>
+            <div class="convocatoria-grid">
+                <div class="equipo-list">
+                    <h4>Mi Equipo <span id="count-A">0/16</span>
+                        <button type="button" class="btn" id="btn-toggle-A" onclick="toggleTodos('A')" style="margin-left:10px; font-size:0.85em; padding:4px 12px;">Quitar todos</button>
+                    </h4>
+                    <div id="lista-A"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div style="text-align: right;">
+            <button class="btn primary-btn" onclick="crearPartido()" style="font-size: 1.1em; padding: 10px 30px;">Iniciar Partido</button>
+        </div>
+    </div>
+
+    <script>
+        let planteles = { 'A': [] };
+
+        // Set now
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        document.getElementById('fecha').value = now.toISOString().slice(0, 16);
+
+        fetch('/api/equipos')
+            .then(r => r.json())
+            .then(equipos => {
+                const selA = document.getElementById('sel-eq-a');
+                
+                equipos.forEach(e => {
+                    selA.innerHTML += `<option value="${e.id_equipo}">${e.nombre}</option>`;
+                });
+                
+                if(equipos.length > 0) {
+                    cargarPlantel('A');
+                }
+            });
+
+        function cargarPlantel(lado) {
+            const idEquipo = document.getElementById(`sel-eq-${lado.toLowerCase()}`).value;
+            if (!idEquipo) return;
+            
+            fetch(`/api/equipos/${idEquipo}/plantel`)
+                .then(r => r.json())
+                .then(data => {
+                    planteles[lado] = data.filter(j => j.activo === 1);
+                    renderLista(lado);
+                });
+        }
+
+        function renderLista(lado) {
+            const div = document.getElementById(`lista-${lado}`);
+            div.innerHTML = '';
+            planteles[lado].forEach((j, i) => {
+                div.innerHTML += `
+                    <div class="jugador-item">
+                        <input type="checkbox" id="chk-${lado}-${i}" ${i < 16 ? 'checked' : ''} onchange="actualizarContador('${lado}')">
+                        <input type="number" id="num-${lado}-${i}" value="${j.numero_habitual || ''}" placeholder="#">
+                        <div style="flex:1;">${j.nombre}</div>
+                        <select id="pos-${lado}-${i}">
+                            <option value="CAMPO" ${j.posicion_habitual==='CAMPO'?'selected':''}>Campo</option>
+                            <option value="PORTERO" ${j.posicion_habitual==='PORTERO'?'selected':''}>Portero</option>
+                        </select>
+                    </div>
+                `;
+            });
+            actualizarContador(lado);
+        }
+
+        // Marca los 16 primeros si no están todos marcados; si lo están, los desmarca todos
+        function toggleTodos(lado) {
+            const n = planteles[lado].length;
+            let marcados = 0;
+            for (let i = 0; i < n; i++) {
+                const chk = document.getElementById(`chk-${lado}-${i}`);
+                if (chk && chk.checked) marcados++;
+            }
+            const todosMarcados = n > 0 && marcados === n;
+            for (let i = 0; i < n; i++) {
+                const chk = document.getElementById(`chk-${lado}-${i}`);
+                if (chk) chk.checked = todosMarcados ? false : (i < 16);
+            }
+            actualizarContador(lado);
+        }
+
+        function actualizarContador(lado) {
+            let count = 0;
+            planteles[lado].forEach((j, i) => {
+                const chk = document.getElementById(`chk-${lado}-${i}`);
+                if (chk && chk.checked) count++;
+            });
+            document.getElementById(`count-${lado}`).innerText = `${count}/16`;
+            document.getElementById(`count-${lado}`).style.color = count > 16 ? 'red' : 'inherit';
+            const btnToggle = document.getElementById(`btn-toggle-${lado}`);
+            if (btnToggle) {
+                const total = planteles[lado].length;
+                btnToggle.textContent = (total > 0 && count >= total) ? 'Quitar todos' : 'Seleccionar todos';
+            }
+        }
+
+        function crearPartido() {
+            const id_a = document.getElementById('sel-eq-a').value;
+            const rival = document.getElementById('nombre-rival').value || 'Rival';
+            const fecha = document.getElementById('fecha').value;
+            const competicion = document.getElementById('competicion').value;
+            
+            if (!id_a || !fecha) {
+                alert('Faltan datos obligatorios');
+                return;
+            }
+
+            let convocatoria = [];
+            
+            // Recoger Equipo A
+            let cuentaA = 0;
+            let dorsalesA = new Set();
+            let hasPorteroA = false;
+            
+            for(let i=0; i<planteles['A'].length; i++) {
+                const chk = document.getElementById(`chk-A-${i}`);
+                if (chk && chk.checked) {
+                    const numStr = document.getElementById(`num-A-${i}`).value;
+                    const num = parseInt(numStr);
+                    if (isNaN(num)) {
+                        alert(`Falta el dorsal del jugador seleccionado: ${planteles['A'][i].nombre}`);
+                        return;
+                    }
+                    if (dorsalesA.has(num)) {
+                        alert(`Dorsal ${num} repetido en Mi Equipo`);
+                        return;
+                    }
+                    dorsalesA.add(num);
+                    
+                    const pos = document.getElementById(`pos-A-${i}`).value;
+                    if (pos === 'PORTERO') hasPorteroA = true;
+                    
+                    convocatoria.push({
+                        id_plantel: planteles['A'][i].id_plantel,
+                        nombre: planteles['A'][i].nombre,
+                        numero_camiseta: num,
+                        posicion: pos
+                    });
+                    cuentaA++;
+                }
+            }
+
+            if (cuentaA > 16) {
+                alert('Máximo 16 jugadores en Mi Equipo');
+                return;
+            }
+            if (!hasPorteroA && cuentaA > 0) {
+                alert('Debe seleccionar al menos un portero en Mi Equipo');
+                return;
+            }
+            if (cuentaA === 0) {
+                alert('Debe seleccionar jugadores para Mi Equipo');
+                return;
+            }
+
+            const payload = {
+                id_equipo_a: id_a,
+                rival: rival,
+                fecha_partido: fecha,
+                competicion: competicion,
+                convocatoria: convocatoria
+            };
+
+            fetch('/api/matches', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            })
+            .then(async r => {
+                const data = await r.json();
+                if (!r.ok) throw new Error(data.error || 'Error desconocido');
+                window.location.href = `/?match=${data.id_partido}`;
+            })
+            .catch(err => {
+                alert('Error al crear: ' + err.message);
+            });
+        }
+    </script>
+</body>
+</html>

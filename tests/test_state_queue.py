@@ -4,29 +4,6 @@ import os
 import sqlite3
 import app as flask_app
 
-@pytest.fixture
-def client():
-    db_fd, db_path = tempfile.mkstemp()
-    flask_app.app.config['DATABASE_PATH'] = db_path
-    flask_app.app.config['TESTING'] = True
-
-    conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA foreign_keys = ON;")
-    with open('schema.sql', 'r', encoding='utf-8') as f:
-        conn.executescript(f.read())
-    
-    cur = conn.cursor()
-    cur.execute("INSERT INTO Partidos (nombre_equipo_a, nombre_equipo_b, fecha_partido) VALUES ('Equipo A', 'Equipo B', '2026-03-11')")
-    cur.execute("INSERT INTO Jugadores (id_jugador, nombre, id_equipo, numero_camiseta) VALUES (1, 'Atacante A1', 'A', 10)")
-    cur.execute("INSERT INTO Jugadores (id_jugador, nombre, id_equipo, numero_camiseta) VALUES (2, 'Atacante B1', 'B', 7)")
-    conn.commit()
-    conn.close()
-
-    with flask_app.app.test_client() as client:
-        yield client
-
-    os.close(db_fd)
-    os.unlink(db_path)
 
 def test_estado_reconstruye_marcador_y_posesion(client):
     # Registrar 2 goles de equipo A y 1 gol de equipo B
@@ -67,3 +44,27 @@ def test_lote_con_un_invalido(client):
     assert len(data['guardados']) == 2
     assert len(data['rechazados']) == 1
     assert data['rechazados'][0]['client_event_id'] == 'batch-2'
+
+def test_posesion_tras_parada_es_del_portero(client):
+    # Tiro del equipo A parado -> posesión del equipo B
+    client.post('/api/event', json={'id_partido': 1, 'id_jugador': 1,
+        'tipo_evento': 'LANZAMIENTO_6M', 'resultado': 'PARADA',
+        'tiempo_juego': '04:00', 'client_event_id': 'p1'})
+    state = client.get('/api/matches/1/state').get_json()
+    assert state['posesion_actual'] == 'B'
+
+def test_exclusiones_activas_en_state(client):
+    # Insertar exclusión en 01:00 (60s)
+    client.post('/api/event', json={'id_partido': 1, 'id_jugador': 1,
+        'tipo_evento': 'EXCLUSION_2MIN', 'tiempo_juego': '01:00', 'client_event_id': 'excl1'})
+    
+    # Simular que el partido va por 150s (02:30)
+    client.patch('/api/matches/1/state', json={'segundos_jugados': 150})
+    
+    state = client.get('/api/matches/1/state').get_json()
+    activas = state['exclusiones_activas']
+    
+    # 150s actuales - 60s exclusión = 90s cumplidos. Restan 30s.
+    assert len(activas) == 1
+    assert activas[0]['id_jugador'] == 1
+    assert activas[0]['segundos_restantes'] == 30
