@@ -45,11 +45,28 @@ def eficacia_ataque(goles: int, ataques: int) -> float:
         return 0.0
     return round((goles / ataques) * 100, 1)
 
+def lanzamientos_por_ataque(lanzamientos: int, ataques: int) -> float:
+    """Lanzamientos / Ataques (ratio). 0.0 si no hay ataques."""
+    if not ataques or ataques <= 0:
+        return 0.0
+    return round(lanzamientos / ataques, 2)
+
+
+def tiros_por_ataque(lanzamientos: int, ataques: int) -> float:
+    """Alias para lanzamientos_por_ataque."""
+    return lanzamientos_por_ataque(lanzamientos, ataques)
+
+
 def frecuencia_tiro(tiros: int, ataques: int) -> float:
     """(tiros / ataques) * 100: % de ataques que terminan en tiro."""
     if not ataques or ataques <= 0:
         return 0.0
     return round((tiros / ataques) * 100, 1)
+
+
+def frecuencia_lanzamiento(lanzamientos: int, ataques: int) -> float:
+    """Alias de frecuencia_tiro."""
+    return frecuencia_tiro(lanzamientos, ataques)
 
 def perdidas_por_ataque(perdidas: int, ataques: int) -> float:
     """(pérdidas / ataques) * 100: % de ataques que terminan en pérdida."""
