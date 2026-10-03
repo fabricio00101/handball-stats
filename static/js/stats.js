@@ -137,26 +137,45 @@ function filaVentana(b, etiqueta, fuerte) {
 }
 
 function renderBloques(bloques, ventanas) {
-    const box = document.getElementById('bloques-tabla');
-    if (!box) return;
-    if ((!bloques || !bloques.length) && (!ventanas || !ventanas.length)) {
-        box.innerHTML = '<p style="color: var(--text-muted);">Todavía no hay eventos.</p>';
-        return;
+    const boxBloq = document.getElementById('bloques-tabla');
+    const boxVent = document.getElementById('ventanas-tabla');
+    
+    // Bloques (cada 10 min)
+    if (boxBloq) {
+        if (!bloques || !bloques.length) {
+            boxBloq.innerHTML = '<p style="color: var(--text-muted);">Todavía no hay eventos en bloques.</p>';
+        } else {
+            let html = `<table class="stats-table"><thead><tr>
+                <th>Bloque</th><th colspan="3">Goles (A – B)</th><th colspan="3">Tiros (A – B)</th>
+                <th colspan="3">Efic. tiro (A – B)</th><th colspan="3">Ataques (A – B)</th>
+                <th colspan="3">Efic. ataque (A – B)</th><th colspan="3">Pérdidas (A – B)</th>
+                <th colspan="3">Paradas (A – B)</th>
+            </tr></thead><tbody>`;
+            (bloques || []).forEach(b => { html += filaVentana(b, `${b.etiqueta}'`, false); });
+            boxBloq.innerHTML = html + '</tbody></table>';
+        }
     }
-    let html = `<table class="stats-table"><thead><tr>
-        <th>Bloque</th><th colspan="3">Goles (A – B)</th><th colspan="3">Tiros (A – B)</th>
-        <th colspan="3">Efic. tiro (A – B)</th><th colspan="3">Ataques (A – B)</th>
-        <th colspan="3">Efic. ataque (A – B)</th><th colspan="3">Pérdidas (A – B)</th>
-        <th colspan="3">Paradas (A – B)</th>
-    </tr></thead><tbody>`;
-    (bloques || []).forEach(b => { html += filaVentana(b, `${b.etiqueta}'`, false); });
-    (ventanas || []).forEach(v => {
-        const hay = ['ataques', 'goles', 'tiros', 'perdidas', 'paradas']
-            .some(k => (v.A && v.A[k]) || (v.B && v.B[k]));
-        if (v.etiqueta === 'Prórroga' && !hay) return; // no mostrar prórroga vacía
-        html += filaVentana(v, v.etiqueta, true);
-    });
-    box.innerHTML = html + '</tbody></table>';
+    
+    // Ventanas/períodos
+    if (boxVent) {
+        if (!ventanas || !ventanas.length) {
+            boxVent.innerHTML = '<p style="color: var(--text-muted);">Todavía no hay eventos.</p>';
+        } else {
+            let html = `<table class="stats-table"><thead><tr>
+                <th>Período/Ventana</th><th colspan="3">Goles (A – B)</th><th colspan="3">Tiros (A – B)</th>
+                <th colspan="3">Efic. tiro (A – B)</th><th colspan="3">Ataques (A – B)</th>
+                <th colspan="3">Efic. ataque (A – B)</th><th colspan="3">Pérdidas (A – B)</th>
+                <th colspan="3">Paradas (A – B)</th>
+            </tr></thead><tbody>`;
+            (ventanas || []).forEach(v => {
+                const hay = ['ataques', 'goles', 'tiros', 'perdidas', 'paradas']
+                    .some(k => (v.A && v.A[k]) || (v.B && v.B[k]));
+                if (v.etiqueta === 'Prórroga' && !hay) return;
+                html += filaVentana(v, v.etiqueta, true);
+            });
+            boxVent.innerHTML = html + '</tbody></table>';
+        }
+    }
 }
 
 function renderContexto7m(ctx) {

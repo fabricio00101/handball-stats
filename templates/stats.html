@@ -39,23 +39,8 @@
         }
         .stats-table tbody tr:nth-child(even) { background: var(--bg-main); }
         .stats-table tbody tr:hover { background: var(--bg-card-hover); }
-        .charts-row {
-            display: flex;
-            gap: 20px;
-            margin-bottom: 30px;
-            flex-wrap: wrap;
-        }
-        .chart-box {
-            flex: 1;
-            min-width: 300px;
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            padding: 20px;
-            border-radius: var(--radius-md);
-            box-sizing: border-box;
-            box-shadow: var(--shadow-card);
-        }
-        .chart-box h3 { color: var(--text-main); }
+        /* .charts-row y .chart-box se fueron a static/css/styles.css: las
+           comparte la pantalla de portería y acá duplicadas se pisaban. */
         .heatmap-container {
             display: flex;
             justify-content: center;
@@ -147,8 +132,18 @@
 
         <div class="charts-row">
             <div class="chart-box">
-                <h3 style="text-align: center; margin-bottom: 10px;">Parciales cada 10 minutos</h3>
+                <h3 style="text-align: center; margin-bottom: 10px;">Parciales cada 10 minutos (bloques)</h3>
                 <div id="bloques-tabla" style="overflow-x: auto;"></div>
+            </div>
+        </div>
+
+        <div class="charts-row">
+            <div class="chart-box">
+                <h3 style="text-align: center; margin-bottom: 10px;">Análisis por períodos / ventanas</h3>
+                <div id="ventanas-tabla" style="overflow-x: auto;"></div>
+                <p style="font-size: 0.8rem; color: var(--text-muted); text-align: center;">
+                    Incluye 1T, 2T, Prórroga, Últimos 10' y Últimos 5'.
+                </p>
             </div>
         </div>
 
