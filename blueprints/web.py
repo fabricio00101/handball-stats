@@ -6,7 +6,7 @@ web_bp = Blueprint('web', __name__)
 
 # Versión de la app: debe coincidir con CACHE_NAME en static/sw.js.
 # Hay un test que lo exige (test_version_coincide_con_sw). Bump en ambos.
-APP_VERSION = 'bm-tracker-v33'
+APP_VERSION = 'bm-tracker-v34'
 
 @web_bp.route('/')
 def index():

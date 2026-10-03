@@ -678,6 +678,27 @@ body {
     opacity: 0.75;
 }
 
+/* Tarjetas de contenido: fila de KPIs y caja con borde.
+   Viven en la hoja compartida y no en el <style> de stats.html, porque la
+   herramienta de portería usa las mismas clases y ahí salían sin estilos. */
+.charts-row {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+}
+.chart-box {
+    flex: 1;
+    min-width: 300px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    padding: 20px;
+    border-radius: var(--radius-md);
+    box-sizing: border-box;
+    box-shadow: var(--shadow-card);
+}
+.chart-box h3 { color: var(--text-main); }
+
 /* Página y barra del partido */
 .pt-page {
     max-width: 1200px;
@@ -713,8 +734,9 @@ body {
 
 /* El lienzo de la media cancha. Cuadrado porque la media es 20 x 20.
    Las capas van por z-index porque el orden de pintado del canvas y del SVG
-   no es el del HTML: primero el calor, arriba los puntos, y las líneas al
-  bove para que el ojo siempre sepa dónde está la cancha. */
+   no es el del HTML: primero el suelo (el relleno del área de 6 m), después
+   el calor, arriba los puntos, y las líneas al final para que el ojo siempre
+   sepa dónde está la cancha. */
 .pt-court {
     position: relative;
     width: 100%;
@@ -738,21 +760,13 @@ body {
     height: 100%;
     display: block;
 }
+/* El relleno del área de 6 m va abajo de todo: sobre él se pinta el calor y
+   encima los puntos, para que el azul no tiña ni uno ni otro. */
+.pt-suelo { z-index: 0; pointer-events: none; }
 .pt-heat { z-index: 1; }
 .pt-capa { z-index: 2; pointer-events: none; }
 .pt-lineas { z-index: 3; pointer-events: none; }
 .pt-court.tappable { cursor: crosshair; }
-
-/* Líneas de la cancha */
-.pt-line { stroke: #cbd5e1; stroke-width: 0.18; fill: none; }
-.pt-line-dashed { stroke-dasharray: 0.7 0.5; }
-.pt-goal-line { stroke: var(--fail); stroke-width: 0.35; }
-.pt-arc { stroke: var(--accent-blue); stroke-width: 0.22; fill: none; opacity: 0.55; }
-
-/* Cortes de los cuadrantes: guía visual, no la fuente del dato. El tiro se
-   registra en metros, así que estos cortes son solo para que el ojo sepa en
-   qué franja y columna está cayendo. */
-.pt-grid-line { stroke: rgba(11, 28, 48, 0.16); stroke-width: 0.1; stroke-dasharray: 0.4 0.35; }
 
 /* El punto de un tiro en el mapa */
 .pt-dot { stroke: #fff; stroke-width: 0.12; }
@@ -781,28 +795,37 @@ body {
     font-size: 0.8rem;
 }
 
-/* Layout compacto de portería: court + resultado + arco, sin pasos */
+/* Layout compacto de portería: court + resultado + arco, sin pasos.
+   La caja de la cancha tiene que ser CUADRADA: metrosEnChispa() mapea el toque
+   contra getBoundingClientRect() con la misma escala para x e y. Con flex: 1 la
+   caja crecía en alto (360x1015 en pantalla alta, 320x314 en el celular) mientras
+   el dibujo SVG salía cuadrado y centrado adentro: sólo se podían marcar tiros
+   entre 6,5 y 13,5 m y era imposible tocar dentro de 6 m o el arco. min-height
+   (en vez de height) hace que el wrap crezca si el contenido no entra, para que
+   justify-content: center no desborde para arriba en pantallas cortas. */
 .pt-court-wrap {
     display: flex;
     flex-direction: column;
+    justify-content: center;
     gap: 6px;
     width: 100%;
 }
 .pt-court-wrap .pt-court {
     width: 100%;
-    flex: 1 1 280px;
+    flex: 0 0 auto;
     aspect-ratio: 1;
     max-width: 360px;
+    margin: 0 auto;
 }
 @supports (height: 100dvh) {
-    .pt-court-wrap { height: calc(100dvh - 200px); }
+    .pt-court-wrap { min-height: calc(100dvh - 200px); }
 }
 @supports not (height: 100dvh) {
-    .pt-court-wrap { height: calc(100vh - 200px); }
+    .pt-court-wrap { min-height: calc(100vh - 200px); }
 }
 @media (max-width: 699px) {
-    .pt-court-wrap { height: calc(100dvh - 220px); }
-    .pt-court-wrap .pt-court { flex: 1 1 240px; max-width: 320px; }
+    .pt-court-wrap { min-height: calc(100dvh - 220px); }
+    .pt-court-wrap .pt-court { flex: 0 0 auto; max-width: 320px; }
 }
 .pt-toggles { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 6px 0; }
 .pt-nota-chips {

@@ -101,29 +101,67 @@ const Porteria = (() => {
     // captura y el del mapa). Los cortes de fila no se dibujan aparte: la línea
     // de 9 m y el arco de 6 m YA son los cortes, así que se ven las líneas
     // verdaderas en vez de una grilla inventada encima.
+    //
+    // El relleno del área de 6 m vive en su propia capa de abajo (esta de
+    // acá es solo trazo): si el azul estuviera sobre el lienzo taparía el
+    // calor y los puntos justo en la zona más densa de la cancha.
+    const CANCHA_SUELO_SVG = `
+        <path d="M 2.5,20 A 6,6 0 0,1 8.5,14 L 11.5,14 A 6,6 0 0,1 17.5,20 L 2.5,20 Z"
+              fill="rgba(37, 99, 235, 0.12)"/>
+    `;
+
+    // Geometría reglamentaria de media cancha, en metros y con el arco abajo:
+    //   - área de 6 m: dos cuartos de círculo de r=6 centrados en los postes
+    //     (x=8,5 y x=11,5) unidos por el tramo recto de 3 m que queda sobre
+    //     la línea de fondo;
+    //   - línea de 9 m: lo mismo con r=9, discontinua, cortando la banda en
+    //     y=17,04 (es donde el arco reglamentario toca la línea lateral);
+    //   - marca de 7 m: 1 m de largo, centrada sobre el arco, a 7 m (y=13);
+    //   - línea de 4 m: marca del portero a 4 m (y=16), dibujada con 30 cm
+    //     en vez de los 15 cm reglamentarios para que se vea a 460 px.
+    // Las guías de los cuadrantes (6,667 / 13,333) siguen siendo solo una
+    // ayuda para el ojo: el dato que se guarda es el punto en metros.
     const CANCHA_SVG = `
+        <defs>
+            <pattern id="PT_NET" width="0.4" height="0.4" patternUnits="userSpaceOnUse">
+                <path d="M 0 0 L 0.4 0.4 M 0 0.4 L 0.4 0" fill="none"
+                      stroke="rgba(15, 23, 42, 0.28)" stroke-width="0.05"/>
+            </pattern>
+        </defs>
         <rect x="0" y="0" width="20" height="20" fill="none" stroke="#cbd5e1" stroke-width="0.18"/>
         <line x1="0" y1="0" x2="20" y2="0" stroke="#cbd5e1" stroke-width="0.18"/>
         <line x1="0" y1="0" x2="0" y2="20" stroke="#cbd5e1" stroke-width="0.18"/>
         <line x1="20" y1="0" x2="20" y2="20" stroke="#cbd5e1" stroke-width="0.18"/>
-        <line x1="0" y1="20" x2="20" y2="20" stroke="#dc2626" stroke-width="0.35"/>
-        <rect x="8.5" y="19" width="3" height="1" fill="#dc2626" fill-opacity="0.16"
-              stroke="#dc2626" stroke-width="0.2"/>
-        <path d="M 7,20 A 3,3 0 0 0 13,20" fill="none" stroke="#0051d5"
-              stroke-width="0.22" opacity="0.55"/>
-        <line x1="0" y1="13" x2="20" y2="13" stroke="#94a3b8" stroke-width="0.12"
-              stroke-dasharray="0.7 0.5"/>
-        <line x1="0" y1="11" x2="20" y2="11" stroke="#94a3b8" stroke-width="0.12"
-              stroke-dasharray="0.7 0.5"/>
         <line x1="6.6667" y1="0" x2="6.6667" y2="20" stroke="rgba(11,28,48,0.16)"
               stroke-width="0.1" stroke-dasharray="0.4 0.35"/>
         <line x1="13.3333" y1="0" x2="13.3333" y2="20" stroke="rgba(11,28,48,0.16)"
               stroke-width="0.1" stroke-dasharray="0.4 0.35"/>
+        <path d="M 2.5,20 A 6,6 0 0,1 8.5,14 L 11.5,14 A 6,6 0 0,1 17.5,20"
+              fill="none" stroke="#2563eb" stroke-width="0.22"/>
+        <path d="M 0,17.04 A 9,9 0 0,1 8.5,11 L 11.5,11 A 9,9 0 0,1 20,17.04"
+              fill="none" stroke="#94a3b8" stroke-width="0.18" stroke-dasharray="0.6 0.4"/>
+        <line x1="9.5" y1="13" x2="10.5" y2="13" stroke="#0f172a" stroke-width="0.3"
+              stroke-linecap="round"/>
+        <line x1="9.85" y1="16" x2="10.15" y2="16" stroke="#f59e0b" stroke-width="0.22"
+              stroke-linecap="round"/>
+        <line x1="0" y1="20" x2="8.5" y2="20" stroke="#dc2626" stroke-width="0.35"/>
+        <line x1="11.5" y1="20" x2="20" y2="20" stroke="#dc2626" stroke-width="0.35"/>
+        <rect x="8.5" y="19" width="3" height="1" fill="rgba(220, 38, 38, 0.10)"
+              stroke="#dc2626" stroke-width="0.2"/>
+        <rect x="8.5" y="19" width="3" height="1" fill="url(#PT_NET)"/>
+        <circle cx="8.5" cy="20" r="0.16" fill="#ffffff" stroke="#dc2626" stroke-width="0.12"/>
+        <circle cx="11.5" cy="20" r="0.16" fill="#ffffff" stroke="#dc2626" stroke-width="0.12"/>
     `;
 
     function montarCanchas() {
+        document.querySelectorAll('[data-plantilla-suelo]').forEach(svg => {
+            svg.innerHTML = CANCHA_SUELO_SVG;
+        });
+        // El id del patrón de la red se repite en las dos canchas: se le pone
+        // un sufijo por lienzo para que cada referencia apunte a su propia red.
+        let red = 0;
         document.querySelectorAll('[data-plantilla-cancha]').forEach(svg => {
-            svg.innerHTML = CANCHA_SVG;
+            svg.innerHTML = CANCHA_SVG.replace(/PT_NET/g, `pt-net-${red++}`);
         });
     }
 

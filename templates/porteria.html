@@ -154,25 +154,10 @@
                 </div>
             </div>
 
-            <!-- CAPTURAR: arqueros + cancha + resultado + arco -->
-            <div class="chart-box" style="margin-bottom:10px;">
-                <h3 style="font-size:0.9rem; margin-bottom:6px;">Arquero en el arco</h3>
-                <div class="pt-keepers" id="pt-keepers">
-                    {% for j in jugadores_a if j.nombre_corto %}
-                    <button class="pt-keeper" data-keeper-id="{{ j.id_jugador }}">
-                        {% if j.tiene_nombre %}
-                        <span class="pt-keeper-num">{{ j.numero_camiseta or '' }}</span>
-                        <span class="pt-keeper-name">{{ j.nombre_corto }}</span>
-                        {% else %}
-                        <span class="pt-keeper-num">{{ j.numero_camiseta or '' }}</span>
-                        <span class="pt-keeper-name">{{ j.nombre or '' }}</span>
-                        {% endif %}
-                    </button>
-                    {% endfor %}
-                </div>
-            </div>
-
-            <!-- Cancha: tocar para elegir de dónde viene el lanzamiento -->
+            <!-- CAPTURAR: cancha + resultado + arco. El arquero se elige arriba,
+                 en "Quién está en el arco": acá había una segunda lista con el
+                 mismo id que nunca renderizaba nada (el route no trae nombre_corto)
+                 y dejaba una caja vacía sobre la cancha. -->
             <!-- Cancha: tocar para elegir de dónde viene el lanzamiento -->
             <div class="pt-court-wrap">
                 <div id="pt-panel-acciones" style="display:none; margin-bottom:8px;">
@@ -200,6 +185,7 @@
                     </div>
                 </div>
                 <div class="pt-court tappable" id="pt-court-capturar">
+                    <svg class="pt-suelo" viewBox="0 0 20 20" data-plantilla-suelo aria-hidden="true"></svg>
                     <canvas class="pt-heat" id="pt-heat-capturar" aria-hidden="true"></canvas>
                     <svg class="pt-capa" id="pt-puntos-capturar" viewBox="0 0 20 20" aria-hidden="true"></svg>
                     <svg class="pt-lineas" viewBox="0 0 20 20" data-plantilla-cancha aria-hidden="true"></svg>
@@ -216,8 +202,6 @@
                     no se tira de otro lado. Contraataque es solo una etiqueta: el
                     punto lo seguís poniendo vos.
                 </p>
-            </div>
-
             </div>
 
             <!-- Lo último registrado, para verificar el toque sin salir de la pantalla -->
@@ -262,6 +246,7 @@
                         puntito de cada tiro va con su resultado.
                     </p>
                     <div class="pt-court" id="pt-court-mapa">
+                        <svg class="pt-suelo" viewBox="0 0 20 20" data-plantilla-suelo aria-hidden="true"></svg>
                         <canvas class="pt-heat" id="pt-heat" aria-hidden="true"></canvas>
                         <svg class="pt-capa" id="pt-puntos" viewBox="0 0 20 20" aria-hidden="true"></svg>
                         <svg class="pt-lineas" viewBox="0 0 20 20" data-plantilla-cancha aria-hidden="true"></svg>
