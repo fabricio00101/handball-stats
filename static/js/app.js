@@ -180,47 +180,52 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 1. SELECCIÓN DE JUGADOR
+    function playerCardClickHandler(e) {
+        const clickedItem = e.currentTarget;
+        if (clickedItem.classList.contains('disabled')) return; // Jugador en banquillo por exclusión
+
+        playerItems.forEach(p => p.classList.remove('active'));
+        // If creating a new item dynamically, playerItems node list doesn't auto-update, so we remove active from all current DOM nodes
+        document.querySelectorAll(PLAYER_SELECTOR).forEach(p => p.classList.remove('active'));
+        
+        clickedItem.classList.add('active');
+        
+        state.selectedPlayerId = clickedItem.dataset.id;
+        state.selectedTeam = clickedItem.dataset.team;
+
+        // Modo tiro rival (solo si no es analisis, o si analisis se evalua en otro lado)
+        // En analisis un equipo A tirando a B simplemente es equipo A. NO "te atacan".
+        state.tiroRival = !esAnalisis && clickedItem.dataset.team === 'A' && clickedItem.dataset.posicion === 'PORTERO';
+
+        // Nombre a prueba de markup: rivales con dorsal no tienen .player-name
+        const nameEl = clickedItem.querySelector('.player-name');
+        const numEl = clickedItem.querySelector('.player-num');
+        const playerName = nameEl ? nameEl.textContent
+            : ('#' + (numEl ? numEl.textContent.trim() : clickedItem.dataset.id));
+        state.selectedName = playerName;
+        actionFeedbackText.textContent = '';
+        const strong = document.createElement('strong');
+        if (state.tiroRival) {
+            // Anti-error: que quede claro que los tiros van EN CONTRA
+            actionFeedbackText.appendChild(document.createTextNode('Arquero '));
+            strong.textContent = playerName;
+            actionFeedbackText.appendChild(strong);
+            actionFeedbackText.appendChild(document.createTextNode(' → te atacan: los tiros van contra tu equipo.'));
+            actionFeedback.style.borderColor = 'var(--warning)';
+            if (golOutcomeBtn) golOutcomeBtn.textContent = 'Gol en contra';
+        } else {
+            actionFeedbackText.appendChild(document.createTextNode('Jugador seleccionado: '));
+            strong.textContent = playerName;
+            actionFeedbackText.appendChild(strong);
+            actionFeedbackText.appendChild(document.createTextNode('. Elige una acción.'));
+            actionFeedback.style.borderColor = state.selectedTeam === 'A' ? 'var(--team-a-color)' : 'var(--team-b-color)';
+            if (golOutcomeBtn) golOutcomeBtn.textContent = 'Gol';
+        }
+        actionsContainer.classList.remove('disabled');
+    }
+
     playerItems.forEach(item => {
-        item.addEventListener('click', (e) => {
-            const clickedItem = e.currentTarget;
-            if (clickedItem.classList.contains('disabled')) return; // Jugador en banquillo por exclusión
-
-            playerItems.forEach(p => p.classList.remove('active'));
-            clickedItem.classList.add('active');
-            
-            state.selectedPlayerId = clickedItem.dataset.id;
-            state.selectedTeam = clickedItem.dataset.team;
-
-            // Modo tiro rival: tu arquero seleccionado = te están atacando.
-            // Se recalcula en cada selección, nunca queda pegado.
-            state.tiroRival = clickedItem.dataset.team === 'A' && clickedItem.dataset.posicion === 'PORTERO';
-
-            // Nombre a prueba de markup: rivales con dorsal no tienen .player-name
-            const nameEl = clickedItem.querySelector('.player-name');
-            const numEl = clickedItem.querySelector('.player-num');
-            const playerName = nameEl ? nameEl.textContent
-                : ('#' + (numEl ? numEl.textContent.trim() : clickedItem.dataset.id));
-            state.selectedName = playerName;
-            actionFeedbackText.textContent = '';
-            const strong = document.createElement('strong');
-            if (state.tiroRival) {
-                // Anti-error: que quede claro que los tiros van EN CONTRA
-                actionFeedbackText.appendChild(document.createTextNode('Arquero '));
-                strong.textContent = playerName;
-                actionFeedbackText.appendChild(strong);
-                actionFeedbackText.appendChild(document.createTextNode(' → te atacan: los tiros van contra tu equipo.'));
-                actionFeedback.style.borderColor = 'var(--warning)';
-                if (golOutcomeBtn) golOutcomeBtn.textContent = 'Gol en contra';
-            } else {
-                actionFeedbackText.appendChild(document.createTextNode('Jugador seleccionado: '));
-                strong.textContent = playerName;
-                actionFeedbackText.appendChild(strong);
-                actionFeedbackText.appendChild(document.createTextNode('. Elige una acción.'));
-                actionFeedback.style.borderColor = state.selectedTeam === 'A' ? 'var(--team-a-color)' : 'var(--team-b-color)';
-                if (golOutcomeBtn) golOutcomeBtn.textContent = 'Gol';
-            }
-            actionsContainer.classList.remove('disabled');
-        });
+        item.addEventListener('click', playerCardClickHandler);
     });
 
     // 2. CAPTURA DE EVENTOS (ACCIONES)
@@ -334,11 +339,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // ¿Capturando un partido de análisis (ambos equipos completos, jugadores ad-hoc)?
+    // Nota: en MI_EQUIPO el flujo de tiro rival es intocable y no se toca.
+    const esAnalisis = (document.getElementById('game-interface') || {}).dataset ?
+        document.getElementById('game-interface').dataset.tipoPartido === 'ANALISIS' : false;
+
+    // Un arquero en modo análisis es cualquier jugador marcado con el guante 🧤:
+    // los ad-hoc nacen CAMPO y no hay plantilla que diga quién es portero.
+    function esPorteroEnCancha(el) {
+        if (el.classList.contains('disabled')) return false;
+        if (el.dataset.posicion === 'PORTERO') return true;
+        return esAnalisis && String(state.activeKeeper[el.dataset.team]) === String(el.dataset.id);
+    }
+
     // Arqueros disponibles del equipo (excluye suspendidos). Para atribución exacta.
     function porterosDe(equipo) {
         const lista = [];
         document.querySelectorAll(`.player-card[data-team="${equipo}"]`).forEach(el => {
-            if (el.dataset.posicion !== 'PORTERO' || el.classList.contains('disabled')) return;
+            if (!esPorteroEnCancha(el)) return;
             const nameEl = el.querySelector('.player-name');
             const numEl = el.querySelector('.player-num');
             lista.push({
@@ -355,6 +373,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const disp = porterosDe(equipo).map(p => String(p.id));
         let keeperId = state.activeKeeper[equipo] != null ? String(state.activeKeeper[equipo]) : null;
         if (!disp.includes(keeperId)) {
+            // Nunca se pisa una designación explícita: si el operador ya eligió
+            // arquero con el 🧤 y la lista aún no lo refleja, se respeta.
+            const cardDesignado = keeperId
+                ? document.querySelector(`.player-card[data-team="${equipo}"][data-id="${keeperId}"]`)
+                : null;
+            if (cardDesignado && esAnalisis) {
+                return keeperId;
+            }
             keeperId = disp.length ? disp[0] : null;
             state.activeKeeper[equipo] = keeperId;
             persistKeeper();
@@ -375,23 +401,83 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // La designación de arquero es un dato DEL PARTIDO, no del dispositivo: se
+    // persiste en Jugadores.posicion para que sobreviva al cambio de celular y
+    // para que /stats lo reconozca como arquero (sin esto pierde el denominador
+    // de sus paradas). localStorage queda solo como espejo optimista.
+    async function persistirPosicionArquero(equipo, idJugador, posicion) {
+        if (!esAnalisis) return;
+        try {
+            const r = await fetch(`/api/matches/${state.matchId}/jugadores/${idJugador}/posicion`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({posicion: posicion})
+            });
+            if (!r.ok) {
+                const err = await r.json().catch(() => ({}));
+                showToast(err.error || 'No se pudo guardar la posición', true);
+                return;
+            }
+            aplicarPosicionEnDOM(equipo, idJugador, posicion);
+        } catch (e) {
+            showToast('Sin conexión: la posición quedó solo en este dispositivo', true);
+        }
+    }
+
+    // Refleja en las tarjetas lo que el servidor acaba de confirmar, y deja solo
+    // un arquero por equipo (el servidor ya lo garantiza, el DOM también).
+    function aplicarPosicionEnDOM(equipo, idJugador, posicion) {
+        document.querySelectorAll(`.player-card[data-team="${equipo}"]`).forEach(card => {
+            const suyo = String(card.dataset.id) === String(idJugador);
+            card.dataset.posicion = suyo ? posicion : 'CAMPO';
+            card.classList.toggle('es-portero', suyo && posicion === 'PORTERO');
+            const g = card.querySelector('.keeper-toggle');
+            if (g) g.classList.toggle('active', suyo && posicion === 'PORTERO');
+        });
+    }
+
+    // Toggle: tocar el guante del arquero ya designado lo devuelve a CAMPO. Sin
+    // desmarcar, no habria forma de corregir una mala designacion.
     function setActiveKeeper(equipo, idJugador, avisar) {
-        state.activeKeeper[equipo] = idJugador;
+        const card = document.querySelector(`.player-card[data-team="${equipo}"][data-id="${idJugador}"]`);
+        const yaEra = !!(card && card.dataset.posicion === 'PORTERO');
+        const nuevaPos = yaEra ? 'CAMPO' : 'PORTERO';
+
+        if (nuevaPos === 'PORTERO') {
+            state.activeKeeper[equipo] = idJugador;
+        } else {
+            state.activeKeeper[equipo] = null;
+        }
         persistKeeper();
         refreshKeeperToggles();
+        persistirPosicionArquero(equipo, idJugador, nuevaPos);
+
         if (avisar) {
             const p = porterosDe(equipo).find(x => String(x.id) === String(idJugador));
-            showToast(`Arquero en cancha: ${p ? p.nombre : '#' + idJugador}`);
+            const nombre = p ? p.nombre : '#' + idJugador;
+            showToast(nuevaPos === 'PORTERO' ? `Arquero en cancha: ${nombre}` : `${nombre} ya no es el arquero`);
         }
     }
 
     // Restaurar designación guardada (o primer arquero) y cablear los toggles 🧤
     (function initKeeper() {
-        try {
-            const saved = JSON.parse(localStorage.getItem(`keeper:${state.matchId}`) || 'null');
-            if (saved) state.activeKeeper = saved;
-        } catch (e) { /* arrancar con valores por defecto */ }
+        // La BD manda: el template ya pinta data-posicion="PORTERO" en la tarjeta
+        // del arquero de este partido. localStorage solo sirve para el caso de
+        // MI_EQUIPO (ahí la posición viene de la convocatoria y no se edita).
+        if (!esAnalisis) {
+            try {
+                const saved = JSON.parse(localStorage.getItem(`keeper:${state.matchId}`) || 'null');
+                if (saved) state.activeKeeper = saved;
+            } catch (e) { /* arrancar con valores por defecto */ }
+        } else {
+            ['A', 'B'].forEach(eq => {
+                const card = document.querySelector(`.player-card[data-team="${eq}"][data-posicion="PORTERO"]`);
+                if (card) state.activeKeeper[eq] = card.dataset.id;
+            });
+        }
+        // Ambos lados: en análisis los dos equipos designan su arquero.
         arqueroVigente('A');
+        if (esAnalisis) arqueroVigente('B');
         refreshKeeperToggles();
         document.querySelectorAll('.keeper-toggle').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -720,7 +806,9 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        playerItems.forEach(p => p.classList.remove('active'));
+        // querySelectorAll y no el NodeList estático: en análisis las cartas se
+        // crean en runtime y el listado inicial no las incluye.
+        document.querySelectorAll(PLAYER_SELECTOR).forEach(p => p.classList.remove('active'));
         state.selectedPlayerId = null;
         state.selectedTeam = null;
         state.tiroRival = false;

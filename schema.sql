@@ -35,7 +35,8 @@ CREATE TABLE Partidos (
     marcador_final_b INTEGER DEFAULT 0,
     segundos_jugados INTEGER NOT NULL DEFAULT 0,
     periodo_actual INTEGER NOT NULL DEFAULT 1,
-    en_pausa INTEGER NOT NULL DEFAULT 0
+    en_pausa INTEGER NOT NULL DEFAULT 0,
+    tipo_partido TEXT NOT NULL DEFAULT 'MI_EQUIPO' CHECK (tipo_partido IN ('MI_EQUIPO','ANALISIS','PORTERIA'))
 );
 
 CREATE TABLE Jugadores (

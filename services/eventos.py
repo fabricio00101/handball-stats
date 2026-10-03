@@ -19,6 +19,69 @@ TIPO_EVENTO_VALIDOS = LANZAMIENTOS | OFENSIVA | DEFENSIVA | ERRORES | FALTAS | D
 RESULTADOS_VALIDOS = {"GOL", "FALLO", "PARADA", "BLOQUEADO", "POSTE"}
 ZONAS_VALIDAS = {"TL", "TC", "TR", "ML", "MC", "MR", "BL", "BC", "BR"}
 
+# Media cancha defensiva, en metros. El arco propio es el origen: y es la
+# distancia a la línea de fondo y x la lateral desde el centro del arco,
+# positiva hacia la derecha de quien ataca. Una cancha de balonmano mide
+# 20 x 40, así que la media es un cuadrado de 20 x 20.
+ANCHO_MEDIA_CANCHA = 10.0
+LARGO_MEDIA_CANCHA = 20.0
+FRANJA_ARCO = 6.0     # borde del área de portería
+FRANJA_9M = 9.0       # línea de los 9 metros
+# Un tercio del ancho: reparte las columnas en tres tramos iguales de la
+# franja defensiva completa, no del arco (que son 3 m y no divide en tres).
+TERCIO_ANCHO = ANCHO_MEDIA_CANCHA / 3.0
+
+# El cuadrante de origen usa los MISMOS 9 códigos que la zona de portería, con
+# la misma lectura: la fila es la distancia (B pegada al arco, T más allá de
+# 9 m) y la columna es la lateral (L/C/R). Reutilizar el vocabulario hace que
+# los dos 3x3 se lean como un solo dibujo continuo y que las consultas por
+# fila o columna sean las mismas para el origen y para el arco.
+ZONAS_ORIGEN_VALIDAS = ZONAS_VALIDAS
+
+
+def zona_origen_desde_coordenada(x, y):
+    """Cuadrante de la media cancha desde el punto del tiro, o None.
+
+    Delega en las franjas reales (6 m y 9 m) en vez de en el ancho de la celda:
+    el corte entre franjas tiene que caer donde el jugador vio la línea, no
+    donde al Dividió el grid.
+    """
+    if x < -TERCIO_ANCHO:
+        col = 'L'
+    elif x > TERCIO_ANCHO:
+        col = 'R'
+    else:
+        col = 'C'
+
+    if y < FRANJA_ARCO:
+        fila = 'B'
+    elif y < FRANJA_9M:
+        fila = 'M'
+    else:
+        fila = 'T'
+
+    return fila + col
+
+
+def distancia_desde_coordenada(y, es_7m=False):
+    """'6M' / '7M' / '9M' desde la distancia al arco; None más allá de los 9 m.
+
+    Es el mismo criterio que usa el botón de 6 m y el de 9 m de la captura
+    normal, para que el GKI y /stats no cambien de significado.
+
+    El penalti es el único caso donde la franja no alcanza: sale siempre a 7 m,
+    o sea dentro de la franja de 9, y sin esto la columna guardaría '9M' en un
+    tiro que no salió a 9 m. PESOS_GKI ya tiene el peso propio del 7 m (0.85),
+    así que con esto la columna y el peso cuentan la misma historia.
+    """
+    if es_7m:
+        return '7M'
+    if y < FRANJA_ARCO:
+        return '6M'
+    if y < FRANJA_9M:
+        return '9M'
+    return None
+
 def evento_admite_resultado(tipo_evento: str) -> bool:
     return tipo_evento in LANZAMIENTOS
 
@@ -84,11 +147,30 @@ def normalizar_evento_legacy(datos: dict) -> dict:
     except (ValueError, TypeError):
         pass
 
-    # La zona de portería solo pertenece a lanzamientos: cualquier otro evento
-    # que la arrastre (valor stale del cliente) se normaliza a NULL en vez de
-    # rechazar, para no bloquear nunca la captura en vivo.
+    # La zona de portería y el punto del tiro solo pertenecen a lanzamientos:
+    # cualquier otro evento que los arrastre (valor stale del cliente) se
+    # normaliza a NULL en vez de rechazar, para no bloquear nunca la captura
+    # en vivo.
     if datos.get('tipo_evento') != 'LANZAMIENTO':
         datos['zona_porteria'] = None
+        datos['zona_origen'] = None
+        datos['coordenada_x'] = None
+        datos['coordenada_y'] = None
+        return datos
+
+    # El punto del tiro es la fuente de verdad: el cuadrante de origen y la
+    # distancia se derivan de ahí. Se guardan igual como columnas para que las
+    # consultas por franja y columna sigan siendo un GROUP BY de texto y no
+    # una cuenta de flotantes en cada consulta.
+    x, y = datos.get('coordenada_x'), datos.get('coordenada_y')
+    if x is not None and y is not None:
+        try:
+            fx, fy = float(x), float(y)
+        except (TypeError, ValueError):
+            pass    # validar_evento lo rechaza con un mensaje claro
+        else:
+            datos['zona_origen'] = zona_origen_desde_coordenada(fx, fy)
+            datos['distancia'] = distancia_desde_coordenada(fy, _es_verdad(datos.get('es_7m')))
 
     return datos
 
@@ -133,6 +215,34 @@ def validar_evento(datos: dict) -> tuple[list[str], list[str]]:
     # Validar zona de portería
     if zona and zona not in ZONAS_VALIDAS:
         errores.append(f"La zona de portería '{zona}' no es válida.")
+
+    # El cuadrante de origen comparte vocabulario con la zona de portería.
+    origen = datos.get('zona_origen')
+    if origen and origen not in ZONAS_ORIGEN_VALIDAS:
+        errores.append(f"El cuadrante de origen '{origen}' no es válido.")
+
+    # Punto del tiro: dentro de la media cancha y de a pares. Se rechaza en vez
+    # de recortar, porque un punto fuera del arco no es un tiro mal apretado:
+    # es un evento con otro origen, y recortarlo inventa un lugar.
+    cx, cy = datos.get('coordenada_x'), datos.get('coordenada_y')
+    if (cx is None) != (cy is None):
+        errores.append("'coordenada_x' y 'coordenada_y' van de a pares: o hay punto o no hay.")
+    elif cx is not None:
+        try:
+            fx, fy = float(cx), float(cy)
+        except (TypeError, ValueError):
+            errores.append("El punto del tiro debe ser numérico.")
+        else:
+            if not (-ANCHO_MEDIA_CANCHA <= fx <= ANCHO_MEDIA_CANCHA):
+                errores.append(
+                    f"El tiro está a {fx:g}m del centro del arco, fuera de la media cancha "
+                    f"({-ANCHO_MEDIA_CANCHA:g}m a {ANCHO_MEDIA_CANCHA:g}m)."
+                )
+            if not (0.0 <= fy <= LARGO_MEDIA_CANCHA):
+                errores.append(
+                    f"El tiro está a {fy:g}m de la línea de fondo, fuera de la media cancha "
+                    f"(0 a {LARGO_MEDIA_CANCHA:g}m)."
+                )
 
     return errores, warnings
 

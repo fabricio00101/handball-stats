@@ -34,6 +34,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
+// Cómo se muestra un jugador depende del jugador, no del tipo de partido: en
+// ANÁLISIS la plantilla ya trae nombres reales, y el dorsal solo se usa para
+// los que el operador capturó a mano (el backend los marca con tiene_nombre
+// en false porque su nombre es el placeholder "N.º 21").
+
+// Etiqueta para el eje de las barras: dorsal adelante y, si hay, el apellido
+// (lo decide el backend en nombre_corto). El apellido y no el nombre de pila
+// porque los nombres se repiten dentro de un mismo equipo: Ballester tiene dos
+// "Marco" (#3 y #22) y Maipu dos "Lautaro" (#16 y #99).
+function etiquetaBarra(j) {
+    return j.nombre_corto ? `#${j.numero_camiseta} ${j.nombre_corto}` : `#${j.numero_camiseta}`;
+}
+
+// Etiqueta para la columna de nombre de la tabla: nombre completo, y el dorsal
+// si el jugador no tiene uno.
+function etiquetaNombre(j) {
+    return j.tiene_nombre ? j.nombre : `#${j.numero_camiseta}`;
+}
+
 function renderTitle(data) {
     const p = data.partido;
     document.getElementById('match-title').textContent = 
@@ -64,7 +83,7 @@ function renderTable(jugadores) {
             <tr>
                 <td>${j.id_equipo}</td>
                 <td>${j.numero_camiseta}</td>
-                <td style="text-align: left;">${j.nombre} ${j.es_portero ? '(P)' : ''}</td>
+                <td style="text-align: left;">${etiquetaNombre(j)} ${j.es_portero ? '(P)' : ''}</td>
                 <td>${j.goles} / ${j.lanzamientos_totales}</td>
                 <td>${j.eficiencia_tiro}%</td>
                 <td>${j.asistencias}</td>
@@ -268,7 +287,7 @@ function renderCharts(jugadores, porEquipo) {
         new Chart(document.getElementById(eq === 'A' ? 'chartGolesA' : 'chartGolesB'), {
             type: 'bar',
             data: {
-                labels: goleadores.map(j => `#${j.numero_camiseta} ${j.nombre}`),
+                labels: goleadores.map(j => etiquetaBarra(j)),
                 datasets: [{
                     label: 'Goles',
                     data: goleadores.map(j => j.goles),

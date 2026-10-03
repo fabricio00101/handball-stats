@@ -1,8 +1,27 @@
 import pytest
 import tempfile
 import os
+import shutil
 import sqlite3
+
+# La BD de pruebas se aísla ANTES de importar app. create_app() corre en el
+# import y llama a db.migrate(), que apunta a config.Config.DATABASE_PATH: sin
+# este desvío, cada `pytest` migraría la base real. Con migraciones que
+# reconstruyen tablas eso deja de ser un detalle y pasa a ser un riesgo sobre
+# los partidos de uno.
+_DIR_PRUEBAS = tempfile.mkdtemp(prefix='bm-tracker-pruebas-')
+os.environ['DATABASE_PATH'] = os.path.join(_DIR_PRUEBAS, 'aislada.db')
+
 import app as flask_app
+from init_db import init_db
+
+
+@pytest.fixture(scope='session', autouse=True)
+def _limpiar_bd_aislada():
+    """La carpeta donde vive la BD aislada de la app real. Se borra al terminar."""
+    yield
+    shutil.rmtree(_DIR_PRUEBAS, ignore_errors=True)
+
 
 @pytest.fixture
 def client():

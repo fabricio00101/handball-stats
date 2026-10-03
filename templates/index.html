@@ -64,7 +64,11 @@
                     <button id="stop-btn" class="control-btn">⏸ Detener</button>
                     <button id="reset-btn" class="control-btn">↺ Reiniciar</button>
                 </div>
-                <button id="finish-btn" class="control-btn" style="background: var(--error-container); border-color: #fecaca; color: var(--fatal);" onclick="finalizarPartido()">🏁 Finalizar</button>
+                <div class="time-actions">
+                    <button id="finish-btn" class="control-btn" style="background: var(--error-container); border-color: #fecaca; color: var(--fatal);" onclick="finalizarPartido()">🏁 Finalizar</button>
+                    {# Atajo a las estadísticas sin pasar por la navbar, que se retrae sola. #}
+                    <a href="/stats?match={{ partido.id_partido if partido else '' }}" class="control-btn stats-btn" title="Ver las estadísticas del partido">📊 <span class="btn-label">Estadísticas</span></a>
+                </div>
             </div>
 
             <div class="team-info text-right" id="team-b-header">
@@ -91,16 +95,39 @@
         </div>
 
         <!-- INTERFAZ PRINCIPAL -->
-        <main id="game-interface">
+    <main id="game-interface" data-tipo-partido="{{ partido.tipo_partido if partido else 'MI_EQUIPO' }}">
             <!-- JUGADORES EQUIPO A -->
-            <aside class="team-panel" id="team-a-players" style="flex: 2;">
+            <aside class="team-panel" id="team-a-players">
                 <div class="team-header">
+                    {% if partido and partido.tipo_partido == 'ANALISIS' %}
+                    <h3><span class="team-side">EQUIPO A</span>{{ partido.nombre_equipo_a }}</h3>
+                    {% else %}
                     <h3>Mi Equipo</h3>
-                    <span class="player-count badge">{{ jugadores_a|length }} convocados</span>
+                    {% endif %}
+                    <span class="player-count badge" id="count-A">{{ jugadores_a|length }} convocados</span>
                 </div>
                 
                 <div class="roster-scroll-container">
-                    <div class="players-grid">
+                    <div class="players-grid" id="grid-A">
+                        {% if partido and partido.tipo_partido == 'ANALISIS' %}
+                        {# La plantilla real del equipo, no un grid de dorsales: el
+                           operador ya sabe quienes son. Cada tarjeta es un jugador
+                           de verdad, con nombre y dorsal. #}
+                        {% for i in range(1, 100) %}
+                            {% set j = dorsales_a.get(i) %}
+                            {% if j %}
+                            <div class="player-card{% if j.posicion == 'PORTERO' %} es-portero{% endif %}" data-id="{{ j.id_jugador }}" data-team="A" data-dorsal="{{ i }}" data-posicion="{{ j.posicion }}">
+                                <span class="player-num">{{ i }}</span>
+                                <span class="player-name">{{ j.nombre }}</span>
+                                <button class="keeper-toggle{% if j.posicion == 'PORTERO' %} active{% endif %}" data-keeper-id="{{ j.id_jugador }}" data-keeper-team="A" title="Marcar como arquero en cancha">🧤</button>
+                                <div class="player-excl hidden">2:00</div>
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                        {% if not jugadores_a %}
+                        <p class="roster-empty">Este equipo no tiene plantilla cargada.</p>
+                        {% endif %}
+                        {% else %}
                         {% for jugador in jugadores_a %}
                         <div class="player-card{% if jugador.posicion == 'PORTERO' %} es-portero{% endif %}" data-id="{{ jugador.id_jugador }}" data-team="A" data-posicion="{{ jugador.posicion }}">
                             <span class="player-num">{{ jugador.numero_camiseta }}</span>
@@ -109,9 +136,39 @@
                             <div class="player-excl hidden">2:00</div>
                         </div>
                         {% endfor %}
+                        {% endif %}
                     </div>
                 </div>
             </aside>
+            
+            {% if partido and partido.tipo_partido == 'ANALISIS' %}
+            <!-- JUGADORES EQUIPO B -->
+            <aside class="team-panel" id="team-b-players">
+                <div class="team-header">
+                    <h3><span class="team-side">EQUIPO B</span>{{ partido.nombre_equipo_b }}</h3>
+                    <span class="player-count badge" id="count-B">{{ jugadores_b|length }} convocados</span>
+                </div>
+                
+                <div class="roster-scroll-container">
+                    <div class="players-grid" id="grid-B">
+                        {% for i in range(1, 100) %}
+                            {% set j = dorsales_b.get(i) %}
+                            {% if j %}
+                            <div class="player-card{% if j.posicion == 'PORTERO' %} es-portero{% endif %}" data-id="{{ j.id_jugador }}" data-team="B" data-dorsal="{{ i }}" data-posicion="{{ j.posicion }}">
+                                <span class="player-num">{{ i }}</span>
+                                <span class="player-name">{{ j.nombre }}</span>
+                                <button class="keeper-toggle{% if j.posicion == 'PORTERO' %} active{% endif %}" data-keeper-id="{{ j.id_jugador }}" data-keeper-team="B" title="Marcar como arquero en cancha">🧤</button>
+                                <div class="player-excl hidden">2:00</div>
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                        {% if not jugadores_b %}
+                        <p class="roster-empty">Este equipo no tiene plantilla cargada.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </aside>
+            {% endif %}
 
             <!-- PANEL DE ACCIONES CENTRAL -->
             <section id="action-panel">
@@ -147,6 +204,7 @@
                         <button class="action-btn btn-red" data-event-type="DESCALIFICACION" data-requires-outcome="false">Roja</button>
                     </div>
 
+                    {% if not partido or partido.tipo_partido != 'ANALISIS' %}
                     <!-- RIVAL (sin selección: van directo al rival genérico) -->
                     <div class="action-group action-group-rival">
                         <h4>Rival</h4>
@@ -154,6 +212,7 @@
                         <button class="action-btn btn-error" data-event-type="PERDIDA_BALON" data-requires-outcome="false" data-rival="true">🔄 Pérdida rival</button>
                         <button class="action-btn btn-red" data-event-type="DESCALIFICACION" data-requires-outcome="false" data-rival="true">🔴 Roja rival</button>
                     </div>
+                    {% endif %}
                 </div>
 
                 <!-- MODAL DE RESULTADO + ZONA DEL ARCO (zona obligatoria en Gol/Parada) -->

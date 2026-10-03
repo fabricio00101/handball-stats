@@ -81,21 +81,44 @@
                     partidos.forEach(p => {
                         const div = document.createElement('div');
                         div.className = 'partido-card';
-                        
-                        let mainAction = '';
-                        if (p.estado === 'FINALIZADO') {
+
+                        const esPorteria = p.tipo_partido === 'PORTERIA';
+
+                        // En portería el botón principal es la herramienta, no la
+                        // captura normal: es donde se registra de dónde sale cada
+                        // tiro. Lo mismo finalized o no, porque en un partido de
+                        // portería el análisis vive en la misma pantalla.
+                        let mainAction;
+                        if (esPorteria) {
+                            mainAction = `<a href="/porteria?match=${p.id_partido}" class="btn primary-btn">🧤 Portería</a>`;
+                        } else if (p.estado === 'FINALIZADO') {
                             mainAction = `<a href="/stats?match=${p.id_partido}" class="btn primary-btn">Ver Estadísticas</a>`;
                         } else {
                             mainAction = `<a href="/?match=${p.id_partido}" class="btn primary-btn">Capturar</a>`;
                         }
-                        
+
+                        let badgeAnalisis = '';
+                        let linkComparar = '';
+                        if (p.tipo_partido === 'ANALISIS') {
+                            badgeAnalisis = `<span class="status-badge" style="background:#0f172a;color:#fff;">🛰 ANÁLISIS</span>`;
+                            linkComparar = `<a href="/comparar?analisis=${p.id_partido}" class="btn">🆚 Comparar</a>`;
+                        } else if (esPorteria) {
+                            badgeAnalisis = `<span class="status-badge" style="background:#7c3aed;color:#fff;">🧤 PORTERÍA</span>`;
+                            // En la herramienta están las dos pestañas: capturar y
+                            // analizar. Un partido finalizado pasa a la de analizar.
+                            linkComparar = p.estado === 'FINALIZADO'
+                                ? `<a href="/porteria?match=${p.id_partido}&vista=analizar" class="btn">📊 Analizar</a>`
+                                : '';
+                        }
+
                         div.innerHTML = `
                             <div class="partido-info">
-                                <h3>${p.nombre_a} vs ${p.nombre_b}</h3>
-                                <p>${p.fecha_partido} | ${p.competicion || 'Amistoso'} | Marcador: ${p.marcador_final_a} - ${p.marcador_final_b} 
+                                <h3>${p.nombre_a} vs ${p.nombre_b} ${badgeAnalisis}</h3>
+                                <p>${p.fecha_partido} | ${p.competicion || 'Amistoso'} | Marcador: ${p.marcador_final_a} - ${p.marcador_final_b}
                                 <span class="status-badge status-${p.estado}">${p.estado.replace('_', ' ')}</span></p>
                             </div>
                             <div class="partido-actions">
+                                ${linkComparar}
                                 ${mainAction}
                                 <button class="btn" style="background: var(--fail); border-color: var(--fail); color: #fff;" onclick="deleteMatch(${p.id_partido})">Borrar</button>
                             </div>

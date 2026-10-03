@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portería · Balonmano Stats</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+
+    <link rel="manifest" href="/manifest.webmanifest">
+    <script>
+        // Versión del HTML servido: el JS la compara con /api/version y, si no
+        // coincide (p. ej. HTML viejo cacheado), purga las cachés y recarga.
+        window.APP_VERSION = "{{ app_version }}";
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js');
+            });
+        }
+    </script>
+</head>
+
+<body>
+    <div id="nav-sensor" title="Acercá el mouse para mostrar la navegación"></div>
+    <nav class="top-navbar">
+        <div class="top-navbar-left">
+            <button class="nav-back-btn" onclick="if (document.referrer && document.referrer.indexOf(window.location.host) !== -1) { history.back(); } else { window.location.href = '/partidos'; }" title="Volver a la pantalla anterior">
+                ← Volver
+            </button>
+            <a href="/partidos" class="nav-brand">🤾 Balonmano Stats</a>
+        </div>
+        <div class="top-navbar-right">
+            <span id="sync-status" style="font-size: 0.75rem; padding: 4px 8px; background: var(--bg-card-hover); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-muted);">
+                🟢 Sincronizado
+            </span>
+            <a href="/partidos" class="nav-link">📋 Partidos</a>
+            {% if match_id %}
+            {# Solo la herramienta: / y /stats ceden el paso a /porteria para un
+               partido de portería, así que ofrecerlos sería mandar a otro lado. #}
+            <a href="/porteria?match={{ match_id }}"
+               class="nav-link{% if partido %} active{% endif %}">🧤 Portería</a>
+            {% else %}
+            <a href="/equipos" class="nav-link">👥 Equipos</a>
+            <a href="/nuevo_partido" class="nav-link">➕ Nuevo Partido</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    <div class="pt-page">
+
+        {% if not partido %}
+        <!-- ================================================================
+             La herramienta no corre sobre un partido normal. No se redirige:
+             redirigir deja al operador pensando que rompió algo, cuando lo que
+             pasó es que tocó el enlace equivocado.
+             ================================================================ -->
+        <div class="pt-aviso">
+            {% if match_id %}
+                <strong>Este partido no es de portería.</strong>
+                La pantalla de portería necesita el punto de donde salió cada
+                tiro, que en la captura normal no se pide.
+                <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+                    <a class="nav-link" href="/nuevo_partido?tipo=PORTERIA" style="text-decoration:none;">
+                        ➕ Crear un partido de portería
+                    </a>
+                    <a class="nav-link" href="/?match={{ match_id }}" style="text-decoration:none;">
+                        ⏱️ Ir a la captura normal
+                    </a>
+                    <a class="nav-link" href="/stats?match={{ match_id }}" style="text-decoration:none;">
+                        📊 Ver sus estadísticas
+                    </a>
+                </div>
+            {% else %}
+                <strong>Elegí un partido de portería.</strong>
+                La herramienta se lee desde los porteros: primero de dónde salió
+                el tiro y después dónde entró al arco.
+                <div style="margin-top:10px;">
+                    <a class="nav-link" href="/partidos" style="text-decoration:none;">📋 Ir a la lista de partidos</a>
+                    &nbsp;·&nbsp;
+                    <a class="nav-link" href="/nuevo_partido?tipo=PORTERIA" style="text-decoration:none;">➕ Crear uno</a>
+                </div>
+            {% endif %}
+        </div>
+        {% else %}
+
+        <!-- ================================================================
+             BARRA DEL PARTIDO
+             ================================================================ -->
+        <div class="pt-matchbar">
+            <span class="pt-badge">🧤 Portería</span>
+            <h2>{{ partido.nombre_equipo_a }}</h2>
+            <span style="color: var(--text-muted); font-size: 0.9rem;" id="pt-sub">
+                contra {{ partido.nombre_equipo_b }}
+                {% if partido.estado != 'EN_JUEGO' and partido.estado != 'FINALIZADO' %}· {{ partido.estado }}{% endif %}
+            </span>
+        </div>
+
+        <!-- Las dos pestañas son vistas de la MISMA pantalla, no dos páginas:
+             el switch no recarga nada y funciona sin red. -->
+        <div class="pt-tabs" role="tablist">
+            <button class="pt-tab" id="tab-capturar" role="tab" aria-selected="true">🎯 Capturar</button>
+            <button class="pt-tab" id="tab-analizar" role="tab" aria-selected="false">📊 Analizar</button>
+        </div>
+
+        <!-- ==============================================================
+             PESTAÑA 1: CAPTURAR
+             ============================================================== -->
+        <section id="vista-capturar" role="tabpanel">
+
+            <!-- Quién está en el arco. Va arriba de todo porque es lo único
+                 que cambia entre un tiro y el siguiente sin cambiar de pantalla. -->
+            <div class="chart-box" style="margin-bottom:20px;">
+                <h3 style="font-size:0.95rem; margin-bottom:10px;">🧤 Quién está en el arco</h3>
+                <div class="pt-keepers" id="pt-keepers">
+                    {% for j in jugadores_a %}
+                    <button class="pt-keeper{% if loop.first %} active{% endif %}"
+                            data-keeper-id="{{ j.id_jugador }}"
+                            title="{{ j.nombre }}">
+                        {% if j.posicion == 'PORTERO' %}🧤{% else %}👤{% endif %}
+                        <span class="pt-keeper-num">{{ j.numero_camiseta }}</span>
+                        <span>{{ j.nombre }}</span>
+                    </button>
+                    {% endfor %}
+                </div>
+                <p style="margin-top:10px; font-size:0.78rem; color: var(--text-muted);" id="pt-keeper-ayuda">
+                    {% if jugadores_a %}
+                        El primero es el que está en el arco. Tocar a otro lo cambia: los tiros que vengas después se le cargan a él.
+                    {% else %}
+                        Este partido no tiene ningún jugador en el equipo A. No hay nadie a quien cargarle los tiros.
+                    {% endif %}
+                </p>
+            </div>
+
+            <!-- Reloj. Reusa el mismo módulo que la captura normal para que el
+                 tiempo del partido se comporte igual en las dos herramientas. -->
+            <div class="chart-box" style="margin-bottom:20px;">
+                <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+                    <div>
+                        <div id="timer" style="font-family: var(--font-mono); font-size: 1.9rem; font-weight: 700; color: var(--text-main);">00:00</div>
+                        <div class="sb-meta" id="periodo-label" style="font-size:0.7rem; color: var(--text-muted);">1ª PARTE</div>
+                    </div>
+                    <div id="timer-controls" style="display:flex; gap:6px; flex-wrap:wrap;">
+                        <button id="start-btn" class="control-btn">▶ Iniciar</button>
+                        <button id="stop-btn" class="control-btn">⏸ Detener</button>
+                        <button id="reset-btn" class="control-btn">↺ Reiniciar</button>
+                    </div>
+                    <input type="hidden" id="match-id" value="{{ match_id }}">
+                    {# El estado del reloj y del rival genérico vienen del servidor: la
+                       captura tiene que abrir en la cancha sin depender de la red. #}
+                    <input type="hidden" id="pt-estado"
+                           data-segundos="{{ partido.segundos_jugados or 0 }}"
+                           data-periodo="{{ partido.periodo_actual or 1 }}"
+                           data-rival="{{ partido.rival_generico_id or '' }}"
+                           data-vista="{{ vista }}">
+                </div>
+            </div>
+
+            <!-- CAPTURAR: arqueros + cancha + resultado + arco -->
+            <div class="chart-box" style="margin-bottom:10px;">
+                <h3 style="font-size:0.9rem; margin-bottom:6px;">Arquero en el arco</h3>
+                <div class="pt-keepers" id="pt-keepers">
+                    {% for j in jugadores_a if j.nombre_corto %}
+                    <button class="pt-keeper" data-keeper-id="{{ j.id_jugador }}">
+                        {% if j.tiene_nombre %}
+                        <span class="pt-keeper-num">{{ j.numero_camiseta or '' }}</span>
+                        <span class="pt-keeper-name">{{ j.nombre_corto }}</span>
+                        {% else %}
+                        <span class="pt-keeper-num">{{ j.numero_camiseta or '' }}</span>
+                        <span class="pt-keeper-name">{{ j.nombre or '' }}</span>
+                        {% endif %}
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Cancha: tocar para elegir de dónde viene el lanzamiento -->
+            <!-- Cancha: tocar para elegir de dónde viene el lanzamiento -->
+            <div class="pt-court-wrap">
+                <div id="pt-panel-acciones" style="display:none; margin-bottom:8px;">
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:8px;" id="pt-resultados">
+                        <button class="outcome-btn success" data-outcome="GOL">⚽ Gol</button>
+                        <button class="outcome-btn info-btn" data-outcome="PARADA">🧤 Parada</button>
+                        <button class="outcome-btn fail" data-outcome="FALLO">✗ Fallo</button>
+                        <button class="outcome-btn warning-btn" data-outcome="BLOQUEADO">🛑 Bloqueado</button>
+                    </div>
+                    <div id="pt-panel-arco" style="display:none;">
+                        <div id="pt-arco" class="goal-map" style="max-width:300px; margin:8px auto;">
+                            <div class="goal-zone" data-zona="TL"></div>
+                            <div class="goal-zone" data-zona="TC"></div>
+                            <div class="goal-zone" data-zona="TR"></div>
+                            <div class="goal-zone" data-zona="ML"></div>
+                            <div class="goal-zone" data-zona="MC"></div>
+                            <div class="goal-zone" data-zona="MR"></div>
+                            <div class="goal-zone" data-zona="BL"></div>
+                            <div class="goal-zone" data-zona="BC"></div>
+                            <div class="goal-zone" data-zona="BR"></div>
+                        </div>
+                        <p style="font-size:0.75rem; color: var(--text-muted); text-align:center; margin:4px 0;" id="pt-zona-hint">
+                            Solo para gol y parada. Con fallo o bloqueado no hace falta.
+                        </p>
+                    </div>
+                </div>
+                <div class="pt-court tappable" id="pt-court-capturar">
+                    <canvas class="pt-heat" id="pt-heat-capturar" aria-hidden="true"></canvas>
+                    <svg class="pt-capa" id="pt-puntos-capturar" viewBox="0 0 20 20" aria-hidden="true"></svg>
+                    <svg class="pt-lineas" viewBox="0 0 20 20" data-plantilla-cancha aria-hidden="true"></svg>
+                </div>
+                <div class="pt-toggles" id="pt-toggles">
+                    <button class="pt-toggle" data-toggle="es7m">🎯 7m</button>
+                    <button class="pt-toggle" data-toggle="contraataque">⚡ Contraataque</button>
+                </div>
+                <div class="pt-readout" id="pt-readout">
+                    <span style="color: var(--text-muted);">Tocá la cancha para decir de dónde salió el tiro.</span>
+                </div>
+                <p class="pt-nota-chips" id="pt-nota-chips">
+                    El 7m es un penalti: pone el punto solo en el medio del arco, porque
+                    no se tira de otro lado. Contraataque es solo una etiqueta: el
+                    punto lo seguís poniendo vos.
+                </p>
+            </div>
+
+            </div>
+
+            <!-- Lo último registrado, para verificar el toque sin salir de la pantalla -->
+            <div class="chart-box">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+                    <div>
+                        <div style="font-size:0.95rem; font-weight:600; color: var(--text-main);" id="pt-ultimo-titulo">Todavía no registraste ningún tiro</div>
+                        <div style="font-size:0.8rem; color: var(--text-muted);" id="pt-ultimo-detalle">Empezá tocando la cancha.</div>
+                    </div>
+                    <button id="pt-anular" class="cancel-btn" disabled>↩ Anular el último</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==============================================================
+             PESTAÑA 2: ANALIZAR
+             ============================================================== -->
+        <section id="vista-analizar" role="tabpanel" hidden>
+
+            <!-- Filtro por arquero + avisos de los huecos -->
+            <div class="chart-box" style="margin-bottom:20px;">
+                <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                    <label for="pt-filtro" style="font-size:0.9rem; font-weight:600;">Arquero</label>
+                    <select id="pt-filtro" style="font-family: var(--font-sans); padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main);">
+                        <option value="">Todos los que estuvieron en el arco</option>
+                    </select>
+                </div>
+                <div class="pt-avisos" id="pt-avisos" style="margin-top:12px;"></div>
+            </div>
+
+            <!-- KPIs. El volumen va primero y en color: sin ver cuántos tiros
+                 hay abajo, ningún porcentaje significa nada. -->
+            <div class="charts-row" id="pt-kpis"></div>
+
+            <!-- Mapa de calor por pixel + el 3x3 del arco -->
+            <div class="charts-row">
+                <div class="chart-box">
+                    <h3 style="font-size:0.95rem; margin-bottom:4px;">Mapa de calor de la media cancha</h3>
+                    <p style="font-size:0.78rem; color: var(--text-muted); margin-bottom:12px;">
+                        Dónde pasan los tiros. El fondo es la densidad, con un radio
+                        fijo de 2 m y escala relativa al punto más caliente; el
+                        puntito de cada tiro va con su resultado.
+                    </p>
+                    <div class="pt-court" id="pt-court-mapa">
+                        <canvas class="pt-heat" id="pt-heat" aria-hidden="true"></canvas>
+                        <svg class="pt-capa" id="pt-puntos" viewBox="0 0 20 20" aria-hidden="true"></svg>
+                        <svg class="pt-lineas" viewBox="0 0 20 20" data-plantilla-cancha aria-hidden="true"></svg>
+                    </div>
+                    <div style="display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-top:12px; font-size:0.75rem; color: var(--text-muted);">
+                        <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#dc2626;vertical-align:middle;"></span> Gol</span>
+                        <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#0051d5;vertical-align:middle;"></span> Parada</span>
+                        <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#94a3b8;vertical-align:middle;"></span> Fallo</span>
+                        <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#d97706;vertical-align:middle;"></span> Bloqueado</span>
+                    </div>
+                </div>
+
+                <div class="chart-box">
+                    <h3 style="font-size:0.95rem; margin-bottom:4px;">Dónde entra al arco</h3>
+                    <p style="font-size:0.78rem; color: var(--text-muted); margin-bottom:12px;">
+                        Las nueve zonas, con el volumen primero.
+                    </p>
+                    <div id="pt-grilla-arco" class="goal-map" style="max-width: 340px; margin: 0 auto;"></div>
+                </div>
+            </div>
+
+            <!-- De dónde salen los tiros, en el mismo 3x3 de códigos -->
+            <div class="chart-box" style="margin-bottom:20px;">
+                <h3 style="font-size:0.95rem; margin-bottom:4px;">De dónde salen los tiros</h3>
+                <p style="font-size:0.78rem; color: var(--text-muted); margin-bottom:12px;">
+                    Filas por franja de distancia (0-6 m · 6-9 m · más de 9 m),
+                    columnas por lateral. Es el mismo 3×3 que el del arco, para
+                    que se lean juntos.
+                </p>
+                <div id="pt-grilla-origen" class="pt-rejilla" style="max-width: 420px; margin: 0 auto;"></div>
+            </div>
+
+            <!-- La frase en crudo -->
+            <div class="chart-box" style="margin-bottom:20px;">
+                <h3 style="font-size:0.95rem; margin-bottom:10px;">📖 Lectura</h3>
+                <div class="pt-lectura" id="pt-lectura">—</div>
+            </div>
+
+            <!-- Reparto por tipo: lo que alimenta el GKI y en /stats no se ve -->
+            <div class="chart-box" style="margin-bottom:20px;">
+                <h3 style="font-size:0.95rem; margin-bottom:10px;">Reparto por tipo de tiro</h3>
+                <div id="pt-tipos" style="display:flex; gap:10px; flex-wrap:wrap;"></div>
+            </div>
+
+            <!-- Tabla por arquero -->
+            <div class="chart-box">
+                <h3 style="font-size:0.95rem; margin-bottom:10px;">Por arquero</h3>
+                <table class="stats-table" id="pt-tabla-porteros">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Arquero</th>
+                            <th>Paradas</th>
+                            <th>Tiros a puerta</th>
+                            <th>% Paradas</th>
+                            <th>Goles</th>
+                            <th>Fallos</th>
+                            <th>Bloq.</th>
+                            <th>Tiros</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pt-tbody-porteros"></tbody>
+                </table>
+            </div>
+        </section>
+        {% endif %}
+    </div>
+
+    <script src="{{ url_for('static', filename='js/queue.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/timer.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/porteria.js') }}"></script>
+</body>
+</html>

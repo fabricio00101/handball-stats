@@ -159,6 +159,23 @@ body {
     border-color: #cbd5e1;
 }
 
+/* "Finalizar" y "Estadísticas" van juntos: terminar el partido y ver cómo
+   quedó son el mismo paso. El atajo existe porque la navbar se retrae sola y
+   en el teléfono hay que tocar el sensor para verla. */
+.time-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+}
+.stats-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
 /* INTERFAZ PRINCIPAL */
 #game-interface {
     display: grid;
@@ -591,6 +608,303 @@ body {
     50% { box-shadow: 0 0 18px rgba(217, 119, 6, 0.8); }
 }
 
+/* ==========================================================================
+   HERRAMIENTA DE PORTERÍA
+   Media cancha de 20 x 20 m con el arco abajo y el punto del tiro arriba.
+   ========================================================================== */
+
+/* Pestañas Capturar / Analizar */
+.pt-tabs {
+    display: flex;
+    gap: 6px;
+    background: var(--bg-card-hover);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 4px;
+    margin-bottom: 18px;
+}
+.pt-tab {
+    flex: 1;
+    padding: 10px 12px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    font-family: var(--font-sans);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center;
+    transition: background-color 0.15s, color 0.15s;
+}
+.pt-tab:hover { color: var(--text-main); }
+.pt-tab.active {
+    background: var(--bg-card);
+    color: var(--accent-blue);
+    box-shadow: var(--shadow-card);
+}
+
+/* Selector de arquero en el arco */
+.pt-keepers {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.pt-keeper {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    background: var(--bg-card);
+    color: var(--text-main);
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.15s, background-color 0.15s;
+}
+.pt-keeper:hover { border-color: var(--accent-blue); }
+.pt-keeper.active {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: #fff;
+}
+.pt-keeper .pt-keeper-num {
+    font-family: var(--font-mono);
+    opacity: 0.75;
+}
+
+/* Página y barra del partido */
+.pt-page {
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 20px;
+    color: var(--text-main);
+}
+.pt-matchbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+.pt-matchbar h2 {
+    font-size: 1.15rem;
+    color: var(--text-main);
+}
+.pt-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: var(--radius-full);
+    background: var(--bg-card-highest);
+    border: 1px solid var(--border-color);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--accent-blue);
+    white-space: nowrap;
+}
+
+/* El lienzo de la media cancha. Cuadrado porque la media es 20 x 20.
+   Las capas van por z-index porque el orden de pintado del canvas y del SVG
+   no es el del HTML: primero el calor, arriba los puntos, y las líneas al
+  bove para que el ojo siempre sepa dónde está la cancha. */
+.pt-court {
+    position: relative;
+    width: 100%;
+    max-width: 460px;
+    aspect-ratio: 1;
+    margin: 0 auto;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+.pt-court > svg,
+.pt-court > canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+.pt-heat { z-index: 1; }
+.pt-capa { z-index: 2; pointer-events: none; }
+.pt-lineas { z-index: 3; pointer-events: none; }
+.pt-court.tappable { cursor: crosshair; }
+
+/* Líneas de la cancha */
+.pt-line { stroke: #cbd5e1; stroke-width: 0.18; fill: none; }
+.pt-line-dashed { stroke-dasharray: 0.7 0.5; }
+.pt-goal-line { stroke: var(--fail); stroke-width: 0.35; }
+.pt-arc { stroke: var(--accent-blue); stroke-width: 0.22; fill: none; opacity: 0.55; }
+
+/* Cortes de los cuadrantes: guía visual, no la fuente del dato. El tiro se
+   registra en metros, así que estos cortes son solo para que el ojo sepa en
+   qué franja y columna está cayendo. */
+.pt-grid-line { stroke: rgba(11, 28, 48, 0.16); stroke-width: 0.1; stroke-dasharray: 0.4 0.35; }
+
+/* El punto de un tiro en el mapa */
+.pt-dot { stroke: #fff; stroke-width: 0.12; }
+
+/* Lectura del cuadrante elegido mientras se captura */
+.pt-readout {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    min-height: 1.6em;
+    text-align: center;
+}
+.pt-readout b { color: var(--text-main); }
+.pt-readout .pt-chip {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: var(--radius-full);
+    background: var(--bg-card-highest);
+    border: 1px solid var(--border-color);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+}
+
+/* Layout compacto de portería: court + resultado + arco, sin pasos */
+.pt-court-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+}
+.pt-court-wrap .pt-court {
+    width: 100%;
+    flex: 1 1 280px;
+    aspect-ratio: 1;
+    max-width: 360px;
+}
+@supports (height: 100dvh) {
+    .pt-court-wrap { height: calc(100dvh - 200px); }
+}
+@supports not (height: 100dvh) {
+    .pt-court-wrap { height: calc(100vh - 200px); }
+}
+@media (max-width: 699px) {
+    .pt-court-wrap { height: calc(100dvh - 220px); }
+    .pt-court-wrap .pt-court { flex: 1 1 240px; max-width: 320px; }
+}
+.pt-toggles { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 6px 0; }
+.pt-nota-chips {
+    margin: 6px auto 0;
+    max-width: 44ch;
+    font-size: 0.72rem;
+    line-height: 1.3;
+    color: var(--text-muted);
+    text-align: center;
+}
+.pt-toggle {
+    padding: 7px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    background: var(--bg-card);
+    color: var(--text-muted);
+    font-family: var(--font-sans);
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.pt-toggle.on {
+    background: var(--warning);
+    border-color: var(--warning);
+    color: #fff;
+}
+
+/* Estados del 3x3 del arco en la captura. Los del modal de la captura normal
+   están scopeados a #outcome-modal, así que hay que repetirlos acá: sin el
+   atenuado no se ve que la zona es irrelevante hasta que es gol o parada. */
+#pt-arco { transition: opacity 0.2s; }
+#pt-arco:not(.armed) { opacity: 0.5; }
+#pt-arco.armed {
+    opacity: 1;
+    animation: goal-pulse 1s ease-in-out 2;
+}
+#pt-arco.armed .goal-zone {
+    cursor: pointer;
+    border-color: rgba(11, 28, 48, 0.45);
+}
+#pt-resultados .outcome-btn.selected {
+    outline: 3px solid var(--warning);
+    outline-offset: 2px;
+}
+
+/* Rejilla sin marco de arco: la de origen es la cancha, no el arco, y
+   dibujar el marco de la meta ahí sería mentir sobre lo que se está mirando. */
+.pt-rejilla {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 1fr 1fr 1fr;
+    gap: 2px;
+    width: 100%;
+    aspect-ratio: 1.6;
+}
+
+/* Celdas de la grilla en el análisis */
+.pt-cell {
+    position: relative;
+    border: 1px solid rgba(11, 28, 48, 0.12);
+    border-radius: var(--radius-sm);
+    padding: 10px 8px;
+    text-align: center;
+    min-height: 74px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    transition: background-color 0.2s;
+}
+.pt-cell-tot { font-weight: 700; font-size: 1.05rem; color: var(--text-main); }
+.pt-cell-lbl { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.pt-cell-gol { color: var(--fatal); font-weight: 700; font-size: 0.8rem; }
+.pt-cell-parada { color: var(--accent-blue); font-weight: 700; font-size: 0.8rem; }
+.pt-cell-vacio { color: var(--text-muted); opacity: 0.45; font-size: 0.8rem; }
+
+/* La frase que lee el mapa */
+.pt-lectura {
+    background: var(--bg-card-highest);
+    border: 1px solid var(--border-color);
+    border-left: 3px solid var(--accent-blue);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: var(--text-main);
+}
+.pt-lectura b { color: var(--accent-blue); }
+.pt-avisos { display: flex; flex-direction: column; gap: 8px; }
+.pt-aviso {
+    background: var(--error-container);
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    font-size: 0.85rem;
+    color: var(--fatal);
+}
+
+@media (max-width: 699px) {
+    .pt-cell { min-height: 62px; padding: 6px 4px; }
+    .pt-cell-tot { font-size: 0.95rem; }
+}
+
 /* Toast de confirmación */
 .toast {
     position: fixed;
@@ -865,6 +1179,11 @@ body {
     .team-header h3 { font-size: 0.95rem; }
     #timeline-strip { font-size: 0.75rem; }
     .top-navbar { padding: 8px 12px; }
+    /* El marcador ya es compacto en el teléfono: el atajo se apila y queda
+       solo el ícono para no ensanchar la columna del timer. */
+    .time-actions { flex-direction: column; align-items: stretch; }
+    .stats-btn { justify-content: center; }
+    .stats-btn .btn-label { display: none; }
 }
 
 /* --- Modal en dos columnas: todo visible sin scrollear --- */
@@ -978,6 +1297,96 @@ body {
     white-space: nowrap;
 }
 .lock-chip input { cursor: pointer; transform: scale(1.2); }
+
+/* ===================================================================
+   ANÁLISIS DE TERCEROS: A | ACCIONES | B
+   Los paneles de equipo son idénticos a los de MI_EQUIPO (mismas clases,
+   mismas tarjetas). Sólo cambia la grilla del contenedor a 3 columnas y
+   cada celda del panel es un dorsal capturable. Todo lo de abajo está
+   scopeado a data-tipo-partido="ANALISIS": MI_EQUIPO no se ve afectado.
+   =================================================================== */
+#game-interface[data-tipo-partido="ANALISIS"] {
+    grid-template-columns:
+        minmax(300px, 1fr)      /* Equipo A */
+        minmax(400px, 460px)    /* Acciones  */
+        minmax(300px, 1fr);     /* Equipo B */
+}
+/* Orden visual: A -> acciones -> B (el HTML tiene A, B, acciones) */
+#game-interface[data-tipo-partido="ANALISIS"] #team-a-players { order: 1; }
+#game-interface[data-tipo-partido="ANALISIS"] #action-panel    { order: 2; }
+#game-interface[data-tipo-partido="ANALISIS"] #team-b-players { order: 3; }
+
+/* La plantilla real (16 por lado) con dorsal + nombre: 2 columnas dan el ancho
+   justo para que el nombre no se corte, y scrollear si no entra en pantalla. */
+#game-interface[data-tipo-partido="ANALISIS"] .players-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+}
+#game-interface[data-tipo-partido="ANALISIS"] .roster-scroll-container {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+#game-interface[data-tipo-partido="ANALISIS"] .player-card { order: 0; }
+
+/* dorsal + nombre apilados, como MI_EQUIPO pero más chico para que entren 16 */
+#game-interface[data-tipo-partido="ANALISIS"] .player-card {
+    min-height: 42px;
+    padding: 4px 2px;
+    gap: 1px;
+}
+#game-interface[data-tipo-partido="ANALISIS"] .player-card .player-num { font-size: 1.15rem; }
+#game-interface[data-tipo-partido="ANALISIS"] .player-card .player-name {
+    font-size: 0.62rem;
+    line-height: 1.15;
+}
+/* El 🧤 va arriba a la derecha para no comerse el nombre */
+#game-interface[data-tipo-partido="ANALISIS"] .player-card .keeper-toggle {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    margin: 0;
+    padding: 0 3px;
+    font-size: 0.58rem;
+    line-height: 1.5;
+}
+#game-interface[data-tipo-partido="ANALISIS"] .player-card.es-portero {
+    border-color: var(--success);
+    background: var(--success-container, var(--bg-card-hover));
+}
+/* Sin plantilla cargada */
+.roster-empty {
+    grid-column: 1 / -1;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    padding: 8px 2px;
+}
+
+/* Etiqueta de lado sobre el nombre del equipo. */
+.team-side {
+    display: block;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    line-height: 1.2;
+}
+#team-b-players .team-side { color: var(--team-b-color); }
+
+/* Tablet: 3 columnas apretadas o 2 con acciones al lado. */
+@media (max-width: 1023px) {
+    #game-interface[data-tipo-partido="ANALISIS"] {
+        grid-template-columns: minmax(200px, 1fr) minmax(360px, 430px) minmax(200px, 1fr);
+        gap: 12px;
+    }
+}
+/* Teléfono: columna única A -> acciones -> B. */
+@media (max-width: 699px) {
+    #game-interface[data-tipo-partido="ANALISIS"] { grid-template-columns: 1fr; gap: 10px; }
+    #game-interface[data-tipo-partido="ANALISIS"] #team-a-players,
+    #game-interface[data-tipo-partido="ANALISIS"] #action-panel,
+    #game-interface[data-tipo-partido="ANALISIS"] #team-b-players { grid-column: 1 / -1; }
+}
 
 /* --- Pantallas bajas: marcador slim para dejar aire al panel --- */
 @media (max-height: 820px) {

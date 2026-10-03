@@ -66,16 +66,48 @@
         
         <div class="panel">
             <h3>Datos Generales</h3>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Mi Equipo</label>
-                    <select id="sel-eq-a" onchange="cargarPlantel('A')"></select>
-                </div>
-                <div class="form-group">
-                    <label>Nombre del Rival</label>
-                    <input type="text" id="nombre-rival" placeholder="Ej: Club Balonmano X">
+            <div style="margin-bottom: 20px; padding: 10px; background: var(--bg-card-hover); border-radius: var(--radius-md);">
+                <label style="margin-right: 15px; cursor: pointer;">
+                    <input type="radio" name="tipo_partido" id="radio-tipo-mi-equipo" value="MI_EQUIPO" checked onchange="toggleModo()"> Mi Equipo
+                </label>
+                <label style="margin-right: 15px; cursor: pointer;">
+                    <input type="radio" name="tipo_partido" id="radio-tipo-analisis" value="ANALISIS" onchange="toggleModo()"> Análisis de terceros
+                </label>
+                <label style="cursor: pointer;" title="Se captura desde la herramienta de portería: el punto de donde sale cada tiro y dónde entra al arco.">
+                    <input type="radio" name="tipo_partido" id="radio-tipo-porteria" value="PORTERIA" onchange="toggleModo()"> 🧤 Portería
+                </label>
+            </div>
+            <p id="nota-tipo" style="margin:-10px 0 20px; font-size:0.82em; color: var(--text-muted);">
+                Se registra como un partido normal.
+            </p>
+            
+            <div id="form-mi-equipo">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Mi Equipo</label>
+                        <select id="sel-eq-a" onchange="cargarPlantel('A')"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Nombre del Rival</label>
+                        <input type="text" id="nombre-rival" placeholder="Ej: Club Balonmano X">
+                    </div>
                 </div>
             </div>
+
+            <div id="form-analisis" style="display: none;">
+                <p style="font-size: 0.9em; color: var(--text-muted); margin-bottom: 15px;">Los jugadores se registran sobre la marcha por dorsal durante la captura.</p>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Equipo A (local)</label>
+                        <select id="sel-eq-analisis-a"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Equipo B (visitante)</label>
+                        <select id="sel-eq-analisis-b"></select>
+                    </div>
+                </div>
+            </div>
+
             <div class="form-row">
                 <div class="form-group">
                     <label>Competición</label>
@@ -88,7 +120,7 @@
             </div>
         </div>
         
-        <div class="panel">
+        <div class="panel" id="panel-convocatoria">
             <h3>Convocatoria de Mi Equipo</h3>
             <p style="font-size: 0.9em; color: var(--text-muted); margin-bottom: 15px;">Selecciona hasta 16 jugadores. Se creará automáticamente un plantel predeterminado de 16 jugadores para el equipo rival.</p>
             <div class="convocatoria-grid">
@@ -114,13 +146,53 @@
         now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
         document.getElementById('fecha').value = now.toISOString().slice(0, 16);
 
+        // Portería usa el mismo formulario que Mi Equipo (nuestro equipo, el rival y la
+        // convocatoria con al menos un portero). Lo único que cambia es para dónde
+        // se abre la pantalla después de crearlo y que el tipo viaja en el POST.
+        const NOTAS_TIPO = {
+            MI_EQUIPO: 'Se registra como un partido normal.',
+            ANALISIS: 'Los dos equipos son reales y los jugadores se cargan por dorsal durante la captura.',
+            PORTERIA: 'Se captura en la herramienta de portería: de dónde sale cada tiro y dónde entra al arco. Solo hacen falta nuestros porteros.'
+        };
+
+        function tipoElegido() {
+            const marcado = document.querySelector('input[name="tipo_partido"]:checked');
+            return marcado ? marcado.value : 'MI_EQUIPO';
+        }
+
+        function toggleModo() {
+            const tipo = tipoElegido();
+            const esAnalisis = tipo === 'ANALISIS';
+            document.getElementById('form-mi-equipo').style.display = esAnalisis ? 'none' : 'block';
+            document.getElementById('panel-convocatoria').style.display = esAnalisis ? 'none' : 'block';
+            document.getElementById('form-analisis').style.display = esAnalisis ? 'block' : 'none';
+            document.getElementById('nota-tipo').textContent = NOTAS_TIPO[tipo] || '';
+        }
+
+        // /nuevo_partido?tipo=PORTERIA abre el radio ya elegido: el aviso de la
+        // herramienta de portería manda acá con el tipo puesto para no tener que
+        // volver a elegirlo.
+        (function preseleccionarTipo() {
+            const pedido = new URLSearchParams(window.location.search).get('tipo');
+            if (!pedido || !NOTAS_TIPO[pedido]) return;
+            const radio = document.getElementById('radio-tipo-' + pedido.toLowerCase());
+            if (!radio) return;
+            radio.checked = true;
+            toggleModo();
+        })();
+
         fetch('/api/equipos')
             .then(r => r.json())
             .then(equipos => {
                 const selA = document.getElementById('sel-eq-a');
+                const selAnalisisA = document.getElementById('sel-eq-analisis-a');
+                const selAnalisisB = document.getElementById('sel-eq-analisis-b');
                 
                 equipos.forEach(e => {
-                    selA.innerHTML += `<option value="${e.id_equipo}">${e.nombre}</option>`;
+                    const optionStr = `<option value="${e.id_equipo}">${e.nombre}</option>`;
+                    selA.innerHTML += optionStr;
+                    selAnalisisA.innerHTML += optionStr;
+                    selAnalisisB.innerHTML += optionStr;
                 });
                 
                 if(equipos.length > 0) {
@@ -191,71 +263,98 @@
         }
 
         function crearPartido() {
-            const id_a = document.getElementById('sel-eq-a').value;
-            const rival = document.getElementById('nombre-rival').value || 'Rival';
             const fecha = document.getElementById('fecha').value;
             const competicion = document.getElementById('competicion').value;
+            const tipo = tipoElegido();
+            const esAnalisis = tipo === 'ANALISIS';
             
-            if (!id_a || !fecha) {
-                alert('Faltan datos obligatorios');
+            if (!fecha) {
+                alert('Falta la fecha del partido');
                 return;
             }
 
-            let convocatoria = [];
-            
-            // Recoger Equipo A
-            let cuentaA = 0;
-            let dorsalesA = new Set();
-            let hasPorteroA = false;
-            
-            for(let i=0; i<planteles['A'].length; i++) {
-                const chk = document.getElementById(`chk-A-${i}`);
-                if (chk && chk.checked) {
-                    const numStr = document.getElementById(`num-A-${i}`).value;
-                    const num = parseInt(numStr);
-                    if (isNaN(num)) {
-                        alert(`Falta el dorsal del jugador seleccionado: ${planteles['A'][i].nombre}`);
-                        return;
-                    }
-                    if (dorsalesA.has(num)) {
-                        alert(`Dorsal ${num} repetido en Mi Equipo`);
-                        return;
-                    }
-                    dorsalesA.add(num);
-                    
-                    const pos = document.getElementById(`pos-A-${i}`).value;
-                    if (pos === 'PORTERO') hasPorteroA = true;
-                    
-                    convocatoria.push({
-                        id_plantel: planteles['A'][i].id_plantel,
-                        nombre: planteles['A'][i].nombre,
-                        numero_camiseta: num,
-                        posicion: pos
-                    });
-                    cuentaA++;
+            let payload;
+
+            if (esAnalisis) {
+                const id_a = document.getElementById('sel-eq-analisis-a').value;
+                const id_b = document.getElementById('sel-eq-analisis-b').value;
+                if (!id_a || !id_b) {
+                    alert('Faltan equipos para el análisis');
+                    return;
                 }
-            }
+                payload = {
+                    tipo_partido: 'ANALISIS',
+                    id_equipo_a: id_a,
+                    id_equipo_b: id_b,
+                    fecha_partido: fecha,
+                    competicion: competicion
+                };
+            } else {
+                const id_a = document.getElementById('sel-eq-a').value;
+                const rival = document.getElementById('nombre-rival').value || 'Rival';
+                
+                if (!id_a) {
+                    alert('Falta seleccionar equipo local');
+                    return;
+                }
 
-            if (cuentaA > 16) {
-                alert('Máximo 16 jugadores en Mi Equipo');
-                return;
-            }
-            if (!hasPorteroA && cuentaA > 0) {
-                alert('Debe seleccionar al menos un portero en Mi Equipo');
-                return;
-            }
-            if (cuentaA === 0) {
-                alert('Debe seleccionar jugadores para Mi Equipo');
-                return;
-            }
+                let convocatoria = [];
+                
+                // Recoger Equipo A
+                let cuentaA = 0;
+                let dorsalesA = new Set();
+                let hasPorteroA = false;
+                
+                for(let i=0; i<planteles['A'].length; i++) {
+                    const chk = document.getElementById(`chk-A-${i}`);
+                    if (chk && chk.checked) {
+                        const numStr = document.getElementById(`num-A-${i}`).value;
+                        const num = parseInt(numStr);
+                        if (isNaN(num)) {
+                            alert(`Falta el dorsal del jugador seleccionado: ${planteles['A'][i].nombre}`);
+                            return;
+                        }
+                        if (dorsalesA.has(num)) {
+                            alert(`Dorsal ${num} repetido en Mi Equipo`);
+                            return;
+                        }
+                        dorsalesA.add(num);
+                        
+                        const pos = document.getElementById(`pos-A-${i}`).value;
+                        if (pos === 'PORTERO') hasPorteroA = true;
+                        
+                        convocatoria.push({
+                            id_plantel: planteles['A'][i].id_plantel,
+                            nombre: planteles['A'][i].nombre,
+                            numero_camiseta: num,
+                            posicion: pos
+                        });
+                        cuentaA++;
+                    }
+                }
 
-            const payload = {
-                id_equipo_a: id_a,
-                rival: rival,
-                fecha_partido: fecha,
-                competicion: competicion,
-                convocatoria: convocatoria
-            };
+                if (cuentaA > 16) {
+                    alert('Máximo 16 jugadores en Mi Equipo');
+                    return;
+                }
+                if (!hasPorteroA && cuentaA > 0) {
+                    alert('Debe seleccionar al menos un portero en Mi Equipo');
+                    return;
+                }
+                if (cuentaA === 0) {
+                    alert('Debe seleccionar jugadores para Mi Equipo');
+                    return;
+                }
+
+                payload = {
+                    tipo_partido: tipo,
+                    id_equipo_a: id_a,
+                    rival: rival,
+                    fecha_partido: fecha,
+                    competicion: competicion,
+                    convocatoria: convocatoria
+                };
+            }
 
             fetch('/api/matches', {
                 method: 'POST',
@@ -265,7 +364,11 @@
             .then(async r => {
                 const data = await r.json();
                 if (!r.ok) throw new Error(data.error || 'Error desconocido');
-                window.location.href = `/?match=${data.id_partido}`;
+                // Un partido de portería se captura en su herramienta, no en la normal: la
+            // normal no pide el punto de donde salió el tiro.
+            window.location.href = tipo === 'PORTERIA'
+                ? `/porteria?match=${data.id_partido}`
+                : `/?match=${data.id_partido}`;
             })
             .catch(err => {
                 alert('Error al crear: ' + err.message);

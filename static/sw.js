@@ -1,15 +1,19 @@
-const CACHE_NAME = 'bm-tracker-v27';
+const CACHE_NAME = 'bm-tracker-v33';
 const ASSETS_TO_CACHE = [
   '/',
   '/partidos',
   '/equipos',
   '/nuevo_partido',
   '/temporada',
+  '/comparar',
+  '/porteria',
   '/static/css/styles.css',
   '/static/js/app.js',
   '/static/js/queue.js',
   '/static/js/stats.js',
   '/static/js/timer.js',
+  '/static/js/comparar.js',
+  '/static/js/porteria.js',
   '/static/vendor/chart.min.js',
   '/manifest.webmanifest'
 ];
@@ -53,7 +57,7 @@ self.addEventListener('fetch', event => {
 
   // 2. HTML navigation requests & pages: Network first, fallback to cache safely
   if (request.mode === 'navigate' || (request.headers.get('accept') && request.headers.get('accept').includes('text/html')) ||
-      ['/', '/partidos', '/equipos', '/nuevo_partido', '/temporada', '/stats'].includes(url.pathname)) {
+      ['/', '/partidos', '/equipos', '/nuevo_partido', '/temporada', '/stats', '/comparar', '/porteria'].includes(url.pathname)) {
     event.respondWith(
       fetch(request)
         .then(response => {
